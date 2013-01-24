@@ -1,0 +1,42 @@
+#!/bin/bash
+# RTG init script
+# written Sept 1 2009
+
+
+RTGBIN="/usr/local/rtg/bin/rtgpoll"
+RTGARGS=" -v -t /usr/local/rtg/etc/targets.cfg"
+PID=`pidof rtgpoll`
+
+
+
+case "$1" in
+  start)
+    echo -n "Starting RTG..."
+    if [ -z "$PID" ] ; then
+	$RTGBIN $RTGARGS &> /dev/null &
+    fi
+    if [ $? -gt 0 ]; then
+      echo  "FAILED!!!"
+    else
+      echo  "Ok"
+    fi
+    ;;
+  stop)
+    echo -n "Stopping RTG..."
+    [ ! -z "$PID" ] && kill $PID &> /dev/null
+    if [ $? -gt 0 ]; then
+      echo "FAILED!!!"
+    else
+      echo "Ok"
+    fi
+    ;;
+  restart)
+    $0 stop
+    sleep 3
+    $0 start
+    ;;
+  *)
+    echo "usage: $0 {start|stop|restart}"
+esac
+exit 0
+

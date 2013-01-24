@@ -1,0 +1,251 @@
+#!/bin/bash 
+# run rdiff-backups based on backup .spec files to specify the job
+# written Apr 21 2010
+# TODO make it take in an argument(s) of .spec files, and operate only on those hosts
+# TODO: make script respect a variable in config that says if it should actually run or not. If it shouldnt run, then show that in the summary output
+
+### this backup server ###
+
+backupmachine='barnaby'
+backupdomain='nts.wustl.edu'
+backupdirectory='/backup'
+
+### general settings ###
+
+specdir="./"		# where all the spec files live, for the machines to backup
+#specdir="/etc/wubackups"		# where all the spec files live, for the machines to backup
+logfile="/var/log/backup-rdiff.log"
+debug=false
+info=false
+logging=true
+# runcleanup=true if you want rdiffs older than $days_to_keep_backups to be removed after a successful backup
+runcleanup=true
+runlogdir="/tmp/rdiff-backups"
+
+# note: see man rdiff-backup TIME FORMATS for valid inputs
+days_to_keep_backups='30D'		# how many days to keep backups around (delete older than 30 days)
+
+mailto="gummybearx@gmail.com"
+defaultsshkey="/root/.ssh/mass-command-key"
+
+mail="`which mail`" || ( echo 'No mail found! install, or add to PATH!' && exit 3 )
+rdiffbackup="`which rdiff-backup`" || ( echo 'No rdiff-backup found! install, or add to PATH!' && exit 4 )
+# valid arguments for excludes are --exclude-device-files, --exclude-fifos, --exclude-sockets, --exclude-symbolic-links, --exclude-globbing-filelist, --exclude-globbing-filelist-stdin, --exclude-filelist-stdin, --exclude-regexp, --exclude-special-files
+# --no-compression (disables gzip compression of snapshot files)
+# --ssh-no-compression
+# --verify (slow)
+rdiffarguments="--print-statistics --exclude-device-files" 
+
+DEBUG() {
+        if [[ $debug == "true" ]] ; then
+                date=`date +%Y-%m-%d-%R`
+                if [[ $logging == "true" ]] ; then
+                        echo "$date DEBUG: $1" | tee -a $logfile
+                else
+                        echo "$date DEBUG: $1"
+                fi
+        fi
+}
+
+inform() {
+	if [[ $info == "true" ]] ; then
+		date=`date +%Y-%m-%d-%R`
+		if [[ $logging == "true" ]] ; then
+		   echo "$date INFO: $1" | tee -a $logfile
+		else
+		   echo "$date INFO: $1"
+		fi
+	fi
+}
+# builds string like "--include /path --include /other/thing"
+# argument 1 is "include" or "exclude"
+# argument 2 is an array of paths
+get-in-and-ex-clude-line() {
+	word=$1
+	array=( `echo "$2"` )
+	line=""
+	for path in ${array[@]} ; do
+		line="$line --$word $path"
+	done
+	echo "$line"
+	
+}
+
+#######
+# check if the logging file has been created, if not, make
+#######
+
+if [[ ! -f "$logfile" ]] ; then
+	echo "$logfile doesnt exist, creating..."
+	touch "$logfile"
+	if [[ ! -w "$logfile" ]] ; then
+		echo "$logfile is not writable, +w'ing..."
+		chmod u+w "$logfile"
+	fi
+fi
+
+if [[ ! -w $logfile ]] ; then
+	logging=false
+	DEBUG "turning off logging, $logfile is not writable"
+fi
+
+if [[ ! -d $runlogdir ]] ; then
+	DEBUG "creating $runlogdir for temp files..."
+	mkdir $runlogdir
+fi
+
+######
+# see if we should be reading from $specdir, or from the argument list
+######
+
+specfiles=()
+if [[ "$#" > 0 ]] ; then
+	DEBUG "there are commandline args present, parsing only given specfiles"
+	while [ "$1" ] ; do
+		# check if its a valid .spec file (name and -r only)
+		if [[ -f "$1" && -r "$1" ]] ; then
+			specfiles=(${specfiles[@]} "$1")
+		else
+			inform "ERROR: $1 is not a valid .spec file, skipping"
+		fi
+		shift
+	done
+	if [[ "${#specfiles[@]}" != 0 ]] ; then
+		DEBUG "found these specfiles in argv: ${specfiles[@]}"
+	else
+		inform "no valid .spec files found on the command line, nothing to do..."
+	fi
+else
+	DEBUG "there are no commandline args present, parsing from $specdir"
+	specfiles=($(find $specdir -name '*.spec'))
+	DEBUG "found these specfiles in directory: ${specfiles[@]}"
+fi
+
+# source all .spec files, and run backups
+# .spec file has target=, domain=, backupdirs=(), ostype=
+# TODO see rsync script to port over that information
+
+# this imports in the 'get-os-excludes' script
+source "$specdir/os-excludes"
+
+hosts=()
+durations=()
+exitcodes=()
+
+for spec in ${specfiles[@]} ; do
+	inform "backing up $spec"
+
+	# unset all the info we are looking at, because if we dont, and someone omits somethign, it may assume the previous value
+        # this is because sourcing is global for the script, not just the scope of the if statement....
+	unset hostname sshkey domain os user backuproot includedirs excludedirs customargs sshkey rdiffbinary pythonpath
+
+	source $spec
+	if [[ $? != 0 ]] ; then
+		DEBUG "ERROR loading $spec, does this file exist? skipping..."
+	else
+	os_excludearg=$(get-os-excludes $os)		# generate the os exclude line based on the $os
+	includedirs=`echo ${includedirs[@]}`		# pack array into space separated string
+	excludedirs=`echo ${excludedirs[@]}`		# pack array into space separated string
+	includes=$( get-in-and-ex-clude-line "include" "$includedirs" )
+	excludes=$( get-in-and-ex-clude-line "exclude" "$excludedirs" )
+	runlog="$runlogdir/$hostname"
+	if [[ -z $sshkey ]] ; then			# if no sshkey is specified in the spec file, use default
+		sshkey="$defaultsshkey"
+	fi
+	remoteschema="--remote-schema 'ssh -i $sshkey %s rdiff-backup --server'"
+	# NOTE: because of a issue with bash quoting, you cannot just include $remoteschema in the final command, because the '' quotes breaks 
+	# the word parser in bash. the work around is to not let single ticks be inside a variable, and just duplicate the final command
+	# for the debug output and for the script execution. it sucks, but I cant figure out how to get round it. (rsync scripts had this prob too)
+	DEBUG "$user@$hostname.$domain is backing up $backuproot"
+	DEBUG "$hostname ($os) is excluding os files: $os_excludearg"
+	DEBUG "$hostname has specified includes: $includedirs"
+	DEBUG "$hostname has specified excludes: $excludedirs"
+	DEBUG "$hostname has custom args: $customargs"
+	if [[ "$rdiffbinary" ]] ; then
+		DEBUG "$hostname has custom rdiff path $rdiffbinary"
+	else
+		rdiffbinary="rdiff-backup"
+	fi
+	if [[ "$pythonpath" ]] ; then
+		DEBUG "$hostname has custom PYTHONPATH=$pythonpath"
+		pypath="PYTHONPATH=$pythonpath"
+	else
+		DEBUG "$hostname is using default PYTHONPATH"
+		pypath=''
+	fi
+
+# NOTE! dont forget to update the actual command below, because this $finalcommand isnt executed, due to quoting issues!!!!
+	finalcommand="$rdiffbackup --remote-schema 'ssh -i $sshkey %s $pypath $rdiffbinary --server' $rdiffarguments $os_excludearg $includes $excludes $user@$hostname.$domain::$backuproot $backupdirectory/$hostname"
+	DEBUG "final rdiff command: $finalcommand"
+	DEBUG "starting backup at time `date +%H:%M:%S`"
+
+
+	DEBUG "logging to $runlog"
+	echo "" >"$runlog"
+
+	hosts=(${hosts[@]} "$hostname")		# record that we are running on host
+
+	START=`date +%s`	# grab the start time
+
+	$rdiffbackup --remote-schema "ssh -i $sshkey %s $pypath $rdiffbinary --server" $rdiffarguments $os_excludearg $includes $excludes $user@$hostname.$domain::$backuproot $backupdirectory/$hostname >>"$runlog" 2>&1 exitstatusbackup=$?
+
+	exitcodes=(${exitcodes[@]} "$exitstatusbackup")		# record how we completed
+
+	DEBUG "exit status $exitstatusbackup encountered after rdiff-backup command"
+	END=`date +%s`		# grab the end time
+	duration=$(($END - $START))
+
+	durations=(${durations[@]} "$duration")         # record seconds backup took
+
+	numhours=$(($duration / 3600))
+	nummin=$((($duration - $numhours * 3600)/60))
+	numsec=$(($duration - $numhours * 3600 - $nummin * 60))
+	inform "backup for $hostname took $numhours hours $nummin minutes and $numsec seconds, with status $exitstatusbackup"
+	echo "backup for $hostname took $numhours hours $nummin minutes and $numsec seconds" >>"$runlog"
+	date=`date +%Y-%m-%d-%R`	# what time the email should say
+	if [[ $exitstatusbackup != 0 ]] ; then
+		subject="[BACKUP:FAILED] Backup report for $hostname at $date on [$backupmachine]"
+	else
+		subject="[BACKUP:SUCCESSFUL] Backup report for $hostname at $date on [$backupmachine]"
+	fi
+
+	# clean up old backups
+	if [[ $runcleanup == true ]] ; then
+		DEBUG "running cleanup on $hostname's backups"
+		DEBUG "deleting rdiffs older than $days_to_keep_backups"
+		$rdiffbackup --remove-older-than $days_to_keep_backups --force $backupdirectory/$hostname >>"$runlog" 2>&1
+	fi
+
+	$mail -s "$subject" "$mailto" < "$runlog"
+	
+	# unset choice variables that may not show up in the next iteration
+
+	fi
+done
+
+printf=`which printf`
+$printf '-----{\tbackup summary\t}-----\n'
+$printf "host\tstatus\tduration\tdirectory\tsize\n"
+failedbackups=0
+for i in `seq 0 $((${#hosts[@]}-1))` ; do
+	duration=${durations[$i]}
+	numhours=$(($duration / 3600))
+        nummin=$((($duration - $numhours * 3600)/60))
+        numsec=$(($duration - $numhours * 3600 - $nummin * 60))
+	du=`sudo du -hs $backupdirectory/${hosts[$i]}`	
+	size=${du%%/*}			# size of backup is ${var%%/*} removes longest suffix matching /* from expression
+	size=${size%%[[:space:]]*}	# strip off all trailing spaces from the du command
+	directory=/${du#*/}		# backup dir = /${var#*/}
+	$printf "${hosts[$i]}\t${exitcodes[$i]}\t$numhours""h$nummin""m$numsec""s\t$directory\t$size\n"
+	if [[ ${exitcodes[$i]} != 0 ]] ; then
+		# we have a failed backup, increment failed backup counter
+		let failedbackups=$failedbackups+1
+	fi
+done
+echo
+$printf '-----{\tdisk usage\t}-----\n'
+df -h | grep "$backupdirectory"
+$printf "\n $failedbackups failures\n"
+
+
+

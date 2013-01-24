@@ -1,0 +1,48 @@
+#!/bin/bash
+# written Jul 20 2009
+
+###########################
+#
+# backup hosting1.wustl to /backup/hosting1
+#
+############################
+
+
+
+DATE=`date +%Y-%m-%d-%R`
+backup_host=hosting1
+backup_domain=.wustl.edu
+rsync_command="/usr/bin/rsync -avzR --delete"
+failed=0
+i=0  # counter for dirs to be backed up
+
+backup_dirs=( \
+/ \
+)
+
+
+for dir in ${backup_dirs[@]}
+do
+        $rsync_command -e 'ssh -l root -c blowfish' $backup_host$backup_domain:$dir /backup/$backup_host/ > /dev/null 2>>/tmp/$backup_host-$DATE
+        errorcode[$i]=$?                # set error code for this rsync
+        let i=i+1                       # increment index
+done
+
+for code in ${errorcode[@]}
+do
+        if [[ $code -ne 0 ]] ; then
+                echo "Error $code encountered by rsync for $backup_host" >>/tmp/$backup_host-$DATE
+                failed=1
+        fi
+done
+
+
+if [[ $failed -eq 0 ]] ; then           # no errors, email success
+        subject="Backup complete for $backup_host [skillet.nts]"
+else
+        subject="FAILED Backup report for $backup_host [skillet.nts]"
+fi
+
+
+/usr/bin/mail -s "$subject" unixadmins@list.wustl.edu  < "/tmp/$backup_host-$DATE"
+

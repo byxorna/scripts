@@ -1,0 +1,34 @@
+#!/bin/bash
+# sample iptables for ubuntu (i dont like how they implemented filters)
+# written Feb 11 2010
+# If you use the kernel modules, make sure they are loaded
+modprobe ip_tables
+modprobe iptable_filter
+modprobe iptable_mangle
+modprobe iptable_nat
+modprobe ipt_state
+modprobe ipt_REJECT
+modprobe ipt_LOG
+# added in case you are reloading
+iptables --flush
+# drop all inbound by default
+iptables -P INPUT DROP
+# always allow loopback
+iptables -A INPUT -i lo -j ACCEPT
+# Allow return traffic
+iptables -A INPUT -m state --state ESTABLISHED -j ACCEPT
+iptables -A INPUT -m state --state RELATED -j ACCEPT
+# Allow ICMP
+iptables -A INPUT -p icmp -m icmp -j ACCEPT
+## SSH (Limit connection attempts)
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --set
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --update --seconds 60 --hitcount 20 -j DROP
+iptables -A INPUT -p tcp -m tcp --source 128.252.0.0/16 --dport 22 -j ACCEPT
+#iptables -A INPUT -p tcp -m tcp --source 128.252.0.0/16 --dport 80 -j ACCEPT
+#iptables -A INPUT -p tcp -m tcp --source 128.252.0.0/16 --dport 21 -j ACCEPT
+#iptables -A INPUT -p tcp -m tcp --source 128.252.0.0/16 --dport 8222 -j ACCEPT
+#iptables -A INPUT -p tcp -m tcp --source 128.252.0.0/16 --dport 8333 -j ACCEPT
+#iptables -A INPUT -p tcp -m tcp --source 128.252.0.0/16 --dport 902 -j ACCEPT
+# Log and Block
+iptables -A INPUT -j LOG --log-prefix IN-FILTERBLOCK
+iptables -A INPUT -j REJECT

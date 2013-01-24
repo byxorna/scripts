@@ -1,0 +1,11 @@
+START=`date +%s`        # grab the start time
+
+END=$(($START+22380))
+#END=`date +%s`          # grab the end time
+duration=$(($END - $START))
+numhours=$(($duration / 3600))
+nummin=$((($duration - $numhours * 3600)/60))
+numsec=$(($duration - $numhours * 3600 - $nummin * 60))
+
+
+echo numsec:$numsec nummin:$nummin numhr:$numhours

@@ -1,0 +1,7 @@
+# written Nov 5 2009
+# isnt shell fun?
+tar cfX - /tmp/excl * | ( cd /a && tar xfp - ) #is the p option for first tar create necessary here? preserve
+
+# for moving files from one place to another while preserving permissions and ownser
+
+# or just use echo hello | ssh host cat

@@ -1,0 +1,96 @@
+#!/bin/bash
+# written Feb 19 2010
+
+##################################################
+#  ____  _____    _    ____  __  __ _____ _ _ _  #
+# |  _ \| ____|  / \  |  _ \|  \/  | ____| | | | #
+# | |_) |  _|   / _ \ | | | | |\/| |  _| | | | | #
+# |  _ <| |___ / ___ \| |_| | |  | | |___|_|_|_| #
+# |_| \_\_____/_/   \_\____/|_|  |_|_____(_|_|_) #
+#                                                #
+##################################################
+
+
+# this is a source file for all rsync backup scripts
+# change OS specific excludes here, and they will be sourced by all rsync backup scripts
+
+# disable file name globbing. this is NECESSARY
+set -f 
+
+linux_exclude=( \
+'/dev/*' \
+'/proc/*' \
+'/sys/*' \
+'/tmp/*' \
+)
+
+solaris_exclude=( \
+'/devices/*' \
+'/proc/*'  \
+'/dev/*'  \
+'/system/contract/process/*' \
+'/tmp/*' \
+)
+
+solaris_zones_exclude=( \
+'/opt/zones/*/dev/*' \
+'/opt/zones/*/root/lib/*' \
+'/opt/zones/*/root/dev/*' \
+'/opt/zones/*/root/proc/*' \
+'/opt/zones/*/root/tmp/*' \
+'/opt/zones/*/root/system/contract/process/*' \
+'/opt/zones/*/root/system/contract/all/*' \
+'/opt/zones/*/root/usr/*' \
+'/opt/zones/*/root/lib/*' \
+'/opt/zones/*/root/platform/*' \
+'/opt/zones/*/root/sbin/*' \
+)
+
+####
+#
+# build the exclude line based on what OS the host is
+#
+####
+
+# takes ostype as its 1st argument
+get-os-excludes() {
+
+exclude_argument=""
+
+if [ ! -z "$1" ] ; then
+        case "$1" in
+        solaris)
+                for dir in "${solaris_exclude[@]}"
+                do
+                        exclude_argument="$exclude_argument --exclude $dir"
+                done
+                ;;
+        solaris-zones)
+                for dir in "${solaris_exclude[@]}"
+                do
+                        exclude_argument="$exclude_argument --exclude $dir"
+                done
+                for dir in "${solaris_zones_exclude[@]}"
+                do
+                        exclude_argument="$exclude_argument --exclude $dir"
+                done
+                ;;
+        linux)
+                for dir in "${linux_exclude[@]}"
+                do
+                        exclude_argument="$exclude_argument --exclude $dir"
+                done
+                ;;
+        none)	# just accept what was user set
+                exclude_argument="$exclude_argument"
+                ;;
+        *)
+                echo "$0 unrecognized OS type, i dont know what to exclude, exiting"
+                exit 28
+                ;;
+        esac
+	#echo "${exclude_argument[@]}"
+	echo $exclude_argument
+fi
+}
+
