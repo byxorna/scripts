@@ -17,6 +17,7 @@ OptionParser.new do |opts|
   opts.on('-n','--nodeclass NODECLASS',String,"Specify a nodeclass to search for") {|v| options[:nodeclass] = v}
   opts.on('-p','--pool POOL',String,"Specify a pool to search for") {|v| options[:pool] = v}
   opts.on('-s','--size SIZE',Integer,"Number of assets to return") {|v| options[:query_size] = v}
+  opts.on('-r','--role ROLE',String,"Role of machine") {|v| options[:role] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 end.parse!
 
@@ -24,7 +25,7 @@ end.parse!
 options[:hostname] = ARGV.shift
 
 # if nothing passed to us, lets not search for EVERYTHING
-abort "You need to query for _something_, see --help" if options[:hostname].nil? and options[:pool].nil? and options[:nodeclass].nil?
+abort "You need to query for _something_, see --help" if options[:hostname].nil? and options[:pool].nil? and options[:nodeclass].nil? and options[:role].nil?
 
 c = YAML.load_file(options[:collins_config_file]).reduce({}){|memo,(k,v)| memo[k.to_sym] = v ; memo}
 c = c[:collins] if c.key? :collins
@@ -40,10 +41,12 @@ query_opts = {
   :pool => options[:pool],
   :hostname => options[:hostname]
 }
+query_opts[:primary_role] = options[:role] if options[:role]
+query_opts[:secondary_role] = options[:role2] if options[:role2]
 
 assets = collins.find(query_opts)
 if assets.length > 0
-  assets.each {|a| puts "#{a.tag}\t#{a.hostname}\t#{a.pool}\t#{a.nodeclass}"}
+  assets.each {|a| puts "#{a.tag}\t#{a.hostname}\t#{a.nodeclass}\t#{a.status}\t#{a.pool}\t#{a.primary_role}\t#{a.secondary_role}"}
 else
   $stderr.puts "No assets found"
   exit 1
