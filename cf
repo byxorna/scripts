@@ -9,7 +9,9 @@ require 'optparse'
 options = {
   :collins_config_file => "/var/db/collins.yaml",
   :query_size => 9999,
-  :separator => "\t"
+  :separator => "\t",
+  :tags => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
+  :timeout => 10                # default in collins_client library
 }
 
 selector_keys = [:nodeclass, :pool, :hostname, :primary_role,
@@ -35,10 +37,12 @@ OptionParser.new do |opts|
           ) {|v| options[:hardware_product] = v}
   opts.on('-S','--status STATUS',String,"Asset Status"
           ) {|v| options[:status] = v}
-  opts.on('-t','--tag-separator TAGS',String,"Separator between tags in output"
+  opts.on('-T','--tag-separator TAGS',String,"Separator between tags in output"
           ) {|v| options[:separator] = v}
-  opts.on('-t','--tags TAGS',String,"Tags to output"
+  opts.on('-t','--tags TAGS',String,"Tags to output (Default: #{options[:tags].map(&:to_s).inspect})"
           ) {|v| options[:tags] << v}
+  opts.on('-x','--expire SECONDS',Integer,"Timeout in seconds (0 == forever)"
+          ) {|v| options[:timeout] << v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 end.parse!
 
@@ -49,12 +53,11 @@ options[:hostname] = ARGV.shift
 abort "You need to query for _something_, see --help" if
   selector_keys.all? {|key| options[key].nil?}
 
-options[:tags] = [:tag, :hostname, :nodeclass, :status, :pool,
-	          :primary_role, :secondary_role] unless options[:tags]
-
 c = YAML.load_file(options[:collins_config_file]).reduce({}){|memo,(k,v)|memo[k.to_sym] = v ; memo}
 c = c[:collins] if c.key? :collins
 c[:host] = "https://collins.#{c[:environment]}.tumblr.net"
+c[:timeout] = options[:timeout]
+
 options[:collins_config] = c
 
 collins = Collins::Client.new options[:collins_config]
@@ -70,8 +73,16 @@ selector_keys.each {|key|
 
 assets = collins.find(query_opts)
 if assets.length > 0
-  assets.each {|a| puts options[:tags].map {|t| a.send(t)}.join(options[:separator])}
+  assets.each {|a| puts options[:tags].map {|t|
+      if t == "state"
+        a.send(t).label
+      else
+        a.send(t)
+      end
+    }.join(options[:separator])
+  }
 else
   $stderr.puts "No assets found"
   exit 1
 end
+
