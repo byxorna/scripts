@@ -39,8 +39,8 @@ OptionParser.new do |opts|
           ) {|v| options[:status] = v}
   opts.on('-T','--tag-separator TAGS',String,"Separator between tags in output"
           ) {|v| options[:separator] = v}
-  opts.on('-t','--tags TAGS',String,"Tags to output (Default: #{options[:tags].map(&:to_s).inspect})"
-          ) {|v| options[:tags] << v}
+  opts.on('-t','--tags TAGS',Array,"Tags to output, comma separated (Default: #{options[:tags].map(&:to_s).join(',')})"
+          ) {|v| options[:tags] = v.map(&:to_sym)}
   opts.on('-x','--expire SECONDS',Integer,"Timeout in seconds (0 == forever)"
           ) {|v| options[:timeout] << v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
