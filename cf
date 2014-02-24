@@ -8,16 +8,37 @@ require 'optparse'
 
 options = {
   :collins_config_file => "/var/db/collins.yaml",
-  :query_size => 9999
+  :query_size => 9999,
+  :separator => "\t"
 }
+
+selector_keys = [:nodeclass, :pool, :hostname, :primary_role,
+                 :secondary_role, :status, :hardware_product]
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options] [hostpattern]"
-  opts.on('-c','--config FILE',String,"Specify collins config (Default: #{options[:collins_config_file]})") {|v| options[:collins_config_file] = v}
-  opts.on('-n','--nodeclass NODECLASS',String,"Specify a nodeclass to search for") {|v| options[:nodeclass] = v}
-  opts.on('-p','--pool POOL',String,"Specify a pool to search for") {|v| options[:pool] = v}
-  opts.on('-s','--size SIZE',Integer,"Number of assets to return") {|v| options[:query_size] = v}
-  opts.on('-r','--role ROLE',String,"Role of machine") {|v| options[:role] = v}
+  opts.on('-c','--config FILE',String,
+          "Specify collins config (Default: #{options[:collins_config_file]})"
+          ) {|v| options[:collins_config_file] = v}
+  opts.on('-n','--nodeclass NODECLASS',String,
+          "Specify a nodeclass to search for"
+          ) {|v| options[:nodeclass] = v}
+  opts.on('-p','--pool POOL',String,
+          "Specify a pool to search for") {|v| options[:pool] = v}
+  opts.on('-s','--size SIZE',Integer,
+          "Number of assets to return") {|v| options[:query_size] = v}
+  opts.on('-r','--role ROLE',String,"Role of machine"
+          ) {|v| options[:primary_role] = v}
+  opts.on('-R','--secondary-role ROLE',String,"Secondary Role of machine"
+          ) {|v| options[:secondary_role] = v}
+  opts.on('-H','--hardware-product PRODUCT',String,"Formal product model"
+          ) {|v| options[:hardware_product] = v}
+  opts.on('-S','--status STATUS',String,"Asset Status"
+          ) {|v| options[:status] = v}
+  opts.on('-t','--tag-separator TAGS',String,"Separator between tags in output"
+          ) {|v| options[:separator] = v}
+  opts.on('-t','--tags TAGS',String,"Tags to output"
+          ) {|v| options[:tags] << v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 end.parse!
 
@@ -25,9 +46,13 @@ end.parse!
 options[:hostname] = ARGV.shift
 
 # if nothing passed to us, lets not search for EVERYTHING
-abort "You need to query for _something_, see --help" if options[:hostname].nil? and options[:pool].nil? and options[:nodeclass].nil? and options[:role].nil?
+abort "You need to query for _something_, see --help" if
+  selector_keys.all? {|key| options[key].nil?}
 
-c = YAML.load_file(options[:collins_config_file]).reduce({}){|memo,(k,v)| memo[k.to_sym] = v ; memo}
+options[:tags] = [:tag, :hostname, :nodeclass, :status, :pool,
+	          :primary_role, :secondary_role] unless options[:tags]
+
+c = YAML.load_file(options[:collins_config_file]).reduce({}){|memo,(k,v)|memo[k.to_sym] = v ; memo}
 c = c[:collins] if c.key? :collins
 c[:host] = "https://collins.#{c[:environment]}.tumblr.net"
 options[:collins_config] = c
@@ -36,19 +61,17 @@ collins = Collins::Client.new options[:collins_config]
 
 query_opts = {
   :operation => 'AND',
-  :size => options[:query_size],
-  :nodeclass => options[:nodeclass],
-  :pool => options[:pool],
-  :hostname => options[:hostname]
+  :size => options[:query_size]
 }
-query_opts[:primary_role] = options[:role] if options[:role]
-query_opts[:secondary_role] = options[:role2] if options[:role2]
+
+selector_keys.each {|key|
+  query_opts[key] = options[key] if options[key]
+}
 
 assets = collins.find(query_opts)
 if assets.length > 0
-  assets.each {|a| puts "#{a.tag}\t#{a.hostname}\t#{a.nodeclass}\t#{a.status}\t#{a.pool}\t#{a.primary_role}\t#{a.secondary_role}"}
+  assets.each {|a| puts options[:tags].map {|t| a.send(t)}.join(options[:separator])}
 else
   $stderr.puts "No assets found"
   exit 1
 end
-
