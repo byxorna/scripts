@@ -41,6 +41,7 @@ OptionParser.new do |opts|
           ) {|v| options[:separator] = v}
   opts.on('-t','--tags TAGS',Array,"Tags to output, comma separated (Default: #{options[:tags].map(&:to_s).join(',')})"
           ) {|v| options[:tags] = v.map(&:to_sym)}
+  opts.on('-a','--add-tags TAGS',Array,"Additional tags to add to output, comma separated") {|v| options[:tags].push(v.map(&:to_sym)).flatten! }
   opts.on('-x','--expire SECONDS',Integer,"Timeout in seconds (0 == forever)"
           ) {|v| options[:timeout] << v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
