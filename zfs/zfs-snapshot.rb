@@ -45,7 +45,7 @@ def run_command(cmd)
   unless @options[:dry_run]
     log :debug, "Running: #{cmd}"
     res = `#{cmd}`
-    log :debug, res
+    #log :debug, res
     unless $?.success?
       log :error, "Error while running #{cmd}!"
       [false,res]
