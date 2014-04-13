@@ -93,14 +93,17 @@ def expire
   unless snaps_to_destroy.empty?
     log :info, "Found #{snaps_to_destroy.length} snapshots to destroy:"
     snaps_to_destroy.each {|s| log :info, " - #{s[:name]}"}
-    snaps_to_destroy.each do |s|
+    # we want to return true only if all destroys succeeded
+    snaps_to_destroy.all? do |s|
       destroy_cmd = "#{@options[:zfs]} destroy '#{s[:name]}'"
       success,output = run_command(destroy_cmd)
       log :warn, "Destroyed #{s[:name]}" if success
       log :error, "Unable to destroy #{s[:name]}" unless success
+      success
     end
   else
     log :info, "No snapshots eligible for pruning found"
+    true
   end
 
 end
