@@ -1,0 +1,52 @@
+#!/usr/bin/env tumblr_ruby
+# Stands for collins-ssh-root
+# Fetch root credentials from collins for a given server
+# then log into it via ssh (without requiring keys to be set up)
+#
+# Yes, I know the password will be in the process table for the running expect
+# Expect cannot read commands from stdin and still make 'interact' work
+# Another option would be to use a temp file to read from, but cleaning it up after exec is lame
+
+require 'collins_client'
+require 'yaml'
+
+@collins_config = "/var/db/collins.yaml"
+@hostname = ARGV.shift
+@timeout = 10
+
+abort "Give me a hostname to connect to" unless @hostname
+
+c = YAML.load_file(@collins_config).reduce({}){|memo,(k,v)| memo[k.to_sym] = v ; memo}
+c = c[:collins] if c.key? :collins
+c[:host] = "https://collins.#{c[:environment]}.tumblr.net"
+#puts c.inspect
+
+collins = Collins::Client.new c
+
+assets = collins.find(:hostname => @hostname, :details => true)
+abort "More than 1 node found like #{@hostname} (found #{assets.length}). Please be more specific...\n#{assets.map {|a| a.hostname}.join "\n"}\n" if assets.length != 1
+
+node = assets.first
+#puts node.inspect
+#puts node.system_password
+puts "Connecting to #{node.hostname} as root..."
+
+exec <<_EXPECT_
+/usr/bin/expect -c '
+spawn -noecho /usr/bin/ssh -t -oUserKnownHostsFile=/dev/null -lroot '#{node.hostname}'
+expect {
+  "Are you sure you want to continue connecting (yes/no)?" {
+    send "yes\\r"
+    expect {
+      "s password:" { send "#{node.system_password}\\r" }
+      default { exit 1 }
+    }
+  }
+  default {
+    exit 1
+  }
+}
+interact
+'
+_EXPECT_
+
