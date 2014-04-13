@@ -13,6 +13,14 @@ require 'logger'
   :dry_run => false
 }
 
+def log level,m
+  if @log
+    @log.send(level, m)
+  else
+    puts m
+  end
+end
+
 
 parser = OptionParser.new do |opts|
   opts.separator "Modes:"
@@ -31,41 +39,41 @@ parser.parse!
 
 abort "Requires filesystem to snapshot! See --filesystem.\n#{parser.to_s}" if @options[:fs].nil?
 
-@log = Logger.new(@options[:logfile] || STDOUT)
+@log = Logger.new(@options[:logfile]) if @options[:logfile]
 
 def run_command(cmd)
   unless @options[:dry_run]
-    @log.debug "Running: #{cmd}"
+    log :debug, "Running: #{cmd}"
     res = `#{cmd}`
-    @log.debug res
+    log :debug, res
     unless $?.success?
-      @log.error "Error while running #{cmd}!"
+      log :error, "Error while running #{cmd}!"
       [false,res]
     else
       [true,res]
     end
   else
-    @log.info "Skipped running: #{cmd}"
+    log :info, "Skipped running: #{cmd}"
     [true,""]
   end
 end
 
 def snapshot(snapname,expire_at)
-  @log.info "Creating snapshot #{@options[:fs]}@#{snapname}"
+  log :info, "Creating snapshot #{@options[:fs]}@#{snapname}"
   command = "#{@options[:zfs]} snapshot -o '#{@options[:module]}:managed=true' -o '#{@options[:module]}:expireafter=#{expire_at.strftime('%s')}' '#{@options[:fs]}@#{snapname}'"
   success,output = run_command(command)
-  @log.error "Unable to take snapshot!" unless success
-  @log.info "Snapshot created: #{@options[:fs]}@#{snapname}" if success
+  log :error, "Unable to take snapshot!" unless success
+  log :info, "Snapshot created: #{@options[:fs]}@#{snapname}" if success
   success
 end
 
 def expire
   ts = Time.now
-  @log.info "Querying for snapshots to expire as of #{ts}"
+  log :info, "Querying for snapshots to expire as of #{ts}"
   find_attrs_command = "#{@options[:zfs]} list -rHt snapshot -o #{@options[:module]}:managed,#{@options[:module]}:expireafter,space #{@options[:fs]}"
   success,output = run_command(find_attrs_command)
   unless success
-    @log.error "Unable to query for snapshots! Aborting expire"
+    log :error, "Unable to query for snapshots! Aborting expire"
     exit 2
   end
   eligible_snaps = output.lines.map do |l|
@@ -74,7 +82,7 @@ def expire
     if fields[0] != "true"
       # #{@options[:module]}:managed,#{@options[:module]}:expireafter,name,avail,used,used‐snap,usedds,usedrefreserv,usedchild -t filesystem,volume
       expiration = Time.at(fields[1].to_i)
-      @log.debug("Found managed snapshot: #{fields[2]} with expiration after: #{fields[1]} (#{expiration})")
+      log :debug, "Found managed snapshot: #{fields[2]} with expiration after: #{fields[1]} (#{expiration})"
       { name: fields[2], expiry: expiration }
     else
       nil
@@ -83,16 +91,16 @@ def expire
 
   snaps_to_destroy = eligible_snaps.select {|s| s.expiration < ts }
   unless snaps_to_destroy.empty?
-    @log.info "Found #{snaps_to_destroy.length} snapshots to destroy:"
-    snaps_to_destroy.each {|s| @log.info " - #{s[:name]}"}
+    log :info, "Found #{snaps_to_destroy.length} snapshots to destroy:"
+    snaps_to_destroy.each {|s| log :info, " - #{s[:name]}"}
     snaps_to_destroy.each do |s|
       destroy_cmd = "#{@options[:zfs]} destroy '#{s[:name]}'"
       success,output = run_command(destroy_cmd)
-      @log.warn "Destroyed #{s[:name]}" if success
-      @log.error "Unable to destroy #{s[:name]}" unless success
+      log :warn, "Destroyed #{s[:name]}" if success
+      log :error, "Unable to destroy #{s[:name]}" unless success
     end
   else
-    @log.info "No snapshots eligible for pruning found"
+    log :info, "No snapshots eligible for pruning found"
   end
 
 end
@@ -105,12 +113,12 @@ when :snapshot
   ts = Time.now
   snapname = "#{ts.strftime(@options[:prefix])}#{ts.strftime(@options[:suffix])}"
   expire_at = ts + (86400*@options[:keep_days])
-  @log.info "Snapshotting #{@options[:fs]} as #{snapname}"
-  @log.debug "Will expire in #{@options[:keep_days]} (#{expire_at.to_s})"
+  log :info, "Snapshotting #{@options[:fs]} as #{snapname}"
+  log :debug, "Will expire in #{@options[:keep_days]} (#{expire_at.to_s})"
   s = snapshot(snapname,expire_at)
   exit (s ? 0 : 1)
 else
-  @log.error "Unexpected mode #{@options[:mode]}"
+  log :error, "Unexpected mode #{@options[:mode]}"
   puts parser
   exit 1
 end
