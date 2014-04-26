@@ -8,7 +8,7 @@ if [[ -z $1 || -z $2 ]] ; then
   exit 2
 fi
 
-[[ ! -d $2 ]] && echo "Destination must be a directory" && exit 1
+[[ ! -d $to ]] && echo "Destination $to must be a directory" && exit 1
 
 snapname="$from@backup-$(date +%s)"
 mountpoint="/var/tmp/$snapname"
