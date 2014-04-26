@@ -13,19 +13,21 @@ fi
 snapname="$from@backup-$(date +%s)"
 mountpoint="/var/tmp/$snapname"
 
-
-zfs snapshot -r "$snapname" || ( echo "Unable to create backup snapshot" && exit 1 )
+echo "Creating snapshot of $from as $snapname"
+zfs snapshot "$snapname" || ( echo "Unable to create backup snapshot" && exit 1 )
 # we cant use zfs mount, so do it manually
 mkdir -p "$mountpoint"
+echo "Mounting $snapname to $mountpoint"
 mount -t zfs "$snapname" "$mountpoint" || ( echo "Unable to mount snapshot" && exit 1 )
 
 function on_exit {
   echo "finishing up"
   umount "$mountpoint"
-  zfs destroy -r "$snapname"
+  zfs destroy "$snapname"
 }
 trap on_exit EXIT
 
+echo "Backing up $snapname"
 rsync -azh --delete "$mountpoint" "$to"
 
 
