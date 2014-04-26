@@ -28,7 +28,7 @@ function on_exit {
 trap on_exit EXIT
 
 echo "Backing up $snapname"
-rsync -azh --delete "$mountpoint" "$to"
+rsync -azh --delete "$mountpoint"/* "$to"
 
 
 
