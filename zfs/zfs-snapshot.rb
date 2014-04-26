@@ -80,17 +80,18 @@ def expire
   eligible_snaps = output.lines.map do |l|
     fields = l.split(/\s+/)
     # we only want to work on snaps with module:managed=true
-    if fields[0] != "true"
+    if fields[0] == "true"
       # #{@options[:module]}:managed,#{@options[:module]}:expireafter,name,avail,used,used‐snap,usedds,usedrefreserv,usedchild -t filesystem,volume
       expiration = Time.at(fields[1].to_i)
       log :debug, "Found managed snapshot: #{fields[2]} with expiration after: #{fields[1]} (#{expiration})"
-      { name: fields[2], expiry: expiration }
+      { name: fields[2], expiration: expiration }
     else
       nil
     end
-  end.compact!
+  end.compact
+  log :debug, "Found #{eligible_snaps.length} eligible snapshots"
 
-  snaps_to_destroy = eligible_snaps.select {|s| s.expiration < ts }
+  snaps_to_destroy = eligible_snaps.select {|s| s[:expiration] < ts }
   unless snaps_to_destroy.empty?
     log :info, "Found #{snaps_to_destroy.length} snapshots to destroy:"
     snaps_to_destroy.each {|s| log :info, " - #{s[:name]}"}
