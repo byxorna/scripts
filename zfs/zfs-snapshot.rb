@@ -33,6 +33,7 @@ parser = OptionParser.new do |opts|
   opts.on('-S','--suffix SUFFIX',"Suffix of snapshot (i.e. %s, %Y-%m-%d) (Default: #{@options[:suffix]})") {|v| @options[:suffix] = v}
   opts.on('-l','--log LOGFILE',"Where to log (Default: stdout)") {|v| @options[:logfile] = v}
   opts.on('-d','--dryrun',"Dont actually do anything") {|v| @options[:dry_run] = true}
+  opts.on('-r','--recursive',"Create snapshots recursively") {@options[:recursive] = true}
   opts.on('-h','--help',"Show help") { puts opts ; exit 0 }
 end
 parser.parse!
@@ -60,7 +61,7 @@ end
 
 def snapshot(snapname,expire_at)
   log :info, "Creating snapshot #{@options[:fs]}@#{snapname}"
-  command = "#{@options[:zfs]} snapshot -o '#{@options[:module]}:managed=true' -o '#{@options[:module]}:expireafter=#{expire_at.strftime('%s')}' '#{@options[:fs]}@#{snapname}'"
+  command = "#{@options[:zfs]} snapshot #{@options[:recursive] ? '-r ' : ' ' }-o '#{@options[:module]}:managed=true' -o '#{@options[:module]}:expireafter=#{expire_at.strftime('%s')}' '#{@options[:fs]}@#{snapname}'"
   success,output = run_command(command)
   log :error, "Unable to take snapshot!" unless success
   log :info, "Snapshot created: #{@options[:fs]}@#{snapname}" if success
