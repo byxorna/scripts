@@ -10,6 +10,7 @@ options = {
   :collins_config_file => "/var/db/collins.yaml",
   :query_size => 9999,
   :separator => "\t",
+  :attributes => {},            # additional attributes to query for
   :tags => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
   :timeout => 10                # default in collins_client library
 }
@@ -37,8 +38,11 @@ OptionParser.new do |opts|
           ) {|v| options[:hardware_product] = v}
   opts.on('-S','--status STATUS',String,"Asset Status"
           ) {|v| options[:status] = v}
-  opts.on('-T','--tag-separator TAGS',String,"Separator between tags in output"
-          ) {|v| options[:separator] = v}
+  opts.on('-A','--attribute attribute:value',String,"Arbitrary attributes and values to match in query. : between key and value") do |x|
+    a,v = x.split(':')
+    options[:attributes][a.to_sym] = v
+  end
+  opts.on('-T','--tag-separator TAGS',String,"Separator between tags in output") {|v| options[:attributes] = v}
   opts.on('-t','--tags TAGS',Array,"Tags to output, comma separated (Default: #{options[:tags].map(&:to_s).join(',')})"
           ) {|v| options[:tags] = v.map(&:to_sym)}
   opts.on('-a','--add-tags TAGS',Array,"Additional tags to add to output, comma separated") {|v| options[:tags].push(v.map(&:to_sym)).flatten! }
@@ -71,6 +75,9 @@ query_opts = {
 selector_keys.each {|key|
   query_opts[key] = options[key] if options[key]
 }
+# now populate any other attributes
+query_opts.merge!(options[:attributes])
+
 
 assets = collins.find(query_opts)
 if assets.length > 0
