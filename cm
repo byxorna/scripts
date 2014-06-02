@@ -1,6 +1,6 @@
 #!/usr/bin/env tumblr_ruby
 # stands for collins-modify
-# perform actions on assets in collins easily
+# perform actions on asset attribtues in collins easily
 
 require 'collins_auth'
 require 'yaml'
@@ -17,9 +17,6 @@ options = {
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
-  opts.on('-c','--config FILE',String,
-          "Specify collins config (Default: #{options[:collins_config_file]})"
-          ) {|v| options[:collins_config_file] = v}
   opts.on('-A','--set-attribute attribute:value',String,"Set attribute=value. : between key and value. attribute will be uppercased.") do |x|
     a,v = x.split(':')
     options[:attributes][a.upcase.to_sym] = v
@@ -48,7 +45,11 @@ if options[:tags].nil? or options[:tags].empty?
   options[:tags] = input.map{|l| l.split(/\s+/)[0] rescue nil}.compact.uniq
 end
 
-collins = CollinsAuthenticator.setup_client(:config => options[:collins_config_file])
+begin
+  collins = Collins::Authenticator.setup_client
+rescue => e
+  abort "Unable to set up Collins client! #{e.message}"
+end
 
 options[:tags].each do |t|
   options[:attributes].each do |k,v|
