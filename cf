@@ -2,12 +2,11 @@
 # stands for collins-find
 # look up hosts quickly from collins from the CLI
 
-require 'collins_client'
+require 'collins_auth'
 require 'yaml'
 require 'optparse'
 
 options = {
-  :collins_config_file => "/var/db/collins.yaml",
   :query_size => 9999,
   :separator => "\t",
   :attributes => {},            # additional attributes to query for
@@ -20,9 +19,6 @@ selector_keys = [:nodeclass, :pool, :hostname, :primary_role,
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options] [hostpattern]"
-  opts.on('-c','--config FILE',String,
-          "Specify collins config (Default: #{options[:collins_config_file]})"
-          ) {|v| options[:collins_config_file] = v}
   opts.on('-n','--nodeclass NODECLASS',String,
           "Specify a nodeclass to search for"
           ) {|v| options[:nodeclass] = v}
@@ -58,14 +54,7 @@ options[:hostname] = ARGV.shift
 abort "You need to query for _something_, see --help" if
   selector_keys.all? {|key| options[key].nil?} and options[:attributes].empty?
 
-c = YAML.load_file(options[:collins_config_file]).reduce({}){|memo,(k,v)|memo[k.to_sym] = v ; memo}
-c = c[:collins] if c.key? :collins
-c[:host] = "https://collins.#{c[:environment]}.tumblr.net"
-c[:timeout] = options[:timeout]
-
-options[:collins_config] = c
-
-collins = Collins::Client.new options[:collins_config]
+collins = Collins::Authenticator.setup_client
 
 query_opts = {
   :operation => 'AND',
