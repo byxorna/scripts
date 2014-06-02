@@ -51,6 +51,7 @@ rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end
 
+exit_clean = true
 options[:tags].each do |t|
   options[:attributes].each do |k,v|
     success,message = begin
@@ -58,6 +59,7 @@ options[:tags].each do |t|
     rescue => e
       [false,e.message]
     end
+    exit_clean = success && exit_clean
     puts "#{success ? SUCCESS : ERROR}: #{t} set #{k}=#{v}#{message.nil? ? nil : " (%s)" % e.message}"
   end
   options[:delete_attributes].each do |k|
@@ -66,7 +68,10 @@ options[:tags].each do |t|
     rescue => e
       [false,e.message]
     end
+    exit_clean = success && exit_clean
     puts "#{success ? SUCCESS : ERROR}: #{t} delete #{k}#{message.nil? ? nil : " (%s)" % e.message}"
   end
 end
+
+exit exit_clean ? 0 : 1
 
