@@ -17,11 +17,11 @@ options = {
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
-  opts.on('-A','--set-attribute attribute:value',String,"Set attribute=value. : between key and value. attribute will be uppercased.") do |x|
+  opts.on('-a','--set-attribute attribute:value',String,"Set attribute=value. : between key and value. attribute will be uppercased.") do |x|
     a,v = x.split(':')
     options[:attributes][a.upcase.to_sym] = v
   end
-  opts.on('-D','--delete-attribute attribute',String,"Delete attribute.") {|v| options[:delete_attributes] << v.to_sym }
+  opts.on('-d','--delete-attribute attribute',String,"Delete attribute.") {|v| options[:delete_attributes] << v.to_sym }
   opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| options[:tags] = v.map(&:to_sym)}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
   opts.separator ""
