@@ -37,6 +37,18 @@ OptionParser.new do |opts|
   opts.on('-f','--field-separator SEPARATOR',String,"Separator between columns in output (Default: #{options[:separator]})") {|v| options[:separator] = v}
   opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] << v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
+
+  opts.separator <<_EXAMPLES_
+Examples:
+    Query for devnodes in DEVEL pool that are VMs
+      cf -n develnode -p DEVEL
+    Query for asset 001234, and show its system_password
+      cf -t 001234 -x system_password
+    Query for all decommissioned VM assets
+      cf -a is_vm:true -S decommissioned
+    Query for hosts matching hostname 'web6-'
+      cf web6-
+_EXAMPLES_
 end.parse!
 
 # hostname is the final option, no flags
@@ -46,7 +58,11 @@ options[:hostname] = ARGV.shift
 abort "You need to query for _something_, see --help" if
   selector_keys.all? {|key| options[key].nil?} and options[:attributes].empty?
 
-collins = Collins::Authenticator.setup_client
+begin
+  collins = Collins::Authenticator.setup_client
+rescue => e
+  abort "Unable to set up Collins client! #{e.message}"
+end
 
 query_opts = {
   :operation => 'AND',
@@ -60,17 +76,21 @@ selector_keys.each {|key|
 query_opts.merge!(options[:attributes])
 
 
-assets = collins.find(query_opts)
-if assets.length > 0
-  assets.each {|a| puts options[:columns].map {|t|
-      if t == "state"
-        a.send(t).label
-      else
-        a.send(t)
-      end
-    }.join(options[:separator])
-  }
-else
-  abort "No assets found"
+begin
+  assets = collins.find(query_opts)
+  if assets.length > 0
+    assets.each {|a| puts options[:columns].map {|t|
+        if t == "state"
+          a.send(t).label
+        else
+          a.send(t)
+        end
+      }.join(options[:separator])
+    }
+  else
+    abort "No assets found"
+  end
+rescue => e
+  abort "Error querying collins: #{e.message}"
 end
 
