@@ -10,39 +10,32 @@ options = {
   :query_size => 9999,
   :separator => "\t",
   :attributes => {},            # additional attributes to query for
-  :tags => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
+  :columns => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
   :timeout => 10                # default in collins_client library
 }
 
-selector_keys = [:nodeclass, :pool, :hostname, :primary_role,
-                 :secondary_role, :status, :hardware_product]
+selector_keys = [:nodeclass, :pool, :hostname, :primary_role, :secondary_role, :status, :hardware_product, :tag]
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options] [hostnamepattern]"
-  opts.on('-t','--tags TAGS',Array,"Tags to output, comma separated (Default: #{options[:tags].map(&:to_s).join(',')})") {|v| options[:tags] = v.map(&:to_sym)}
-  opts.on('-n','--nodeclass NODECLASS',String,
-          "Specify a nodeclass to search for"
-          ) {|v| options[:nodeclass] = v}
-  opts.on('-p','--pool POOL',String,
-          "Specify a pool to search for") {|v| options[:pool] = v}
-  opts.on('-s','--size SIZE',Integer,
-          "Number of assets to return") {|v| options[:query_size] = v}
-  opts.on('-r','--role ROLE',String,"Role of machine"
-          ) {|v| options[:primary_role] = v}
-  opts.on('-R','--secondary-role ROLE',String,"Secondary Role of machine"
-          ) {|v| options[:secondary_role] = v}
-  opts.on('-H','--hardware-product PRODUCT',String,"Formal product model"
-          ) {|v| options[:hardware_product] = v}
-  opts.on('-S','--status STATUS',String,"Asset Status"
-          ) {|v| options[:status] = v}
-  opts.on('-A','--attribute attribute:value',String,"Arbitrary attributes and values to match in query. : between key and value") do |x|
+  opts.separator "Query options:"
+  opts.on('-t','--tag TAG',String, "Assets with tag TAG") {|v| options[:tag] = v}
+  opts.on('-n','--nodeclass NODECLASS',String, "Assets in nodeclass NODECLASS") {|v| options[:nodeclass] = v}
+  opts.on('-p','--pool POOL',String, "Assets in pool POOL") {|v| options[:pool] = v}
+  opts.on('-s','--size SIZE',Integer, "Number of assets to return") {|v| options[:query_size] = v}
+  opts.on('-r','--role ROLE',String,"Assets in primary role ROLE") {|v| options[:primary_role] = v}
+  opts.on('-R','--secondary-role ROLE',String,"Assets in secondary role ROLE") {|v| options[:secondary_role] = v}
+  opts.on('-H','--hardware-product PRODUCT',String,"Assets with formal product model PRODUCT") {|v| options[:hardware_product] = v}
+  opts.on('-S','--status STATUS',String,"Asset Status") {|v| options[:status] = v}
+  opts.on('-a','--attribute attribute:value',String,"Arbitrary attributes and values to match in query. : between key and value") do |x|
     a,v = x.split(':')
     options[:attributes][a.to_sym] = v
   end
+  opts.separator "Formatting/extra options:"
+  opts.on('-c','--columns ATTRIBUTES',Array,"Attributes to output as columns, comma separated (Default: #{options[:columns].map(&:to_s).join(',')})") {|v| options[:columns] = v.map(&:to_sym)}
+  opts.on('-x','--extra-columns ATTRIBUTES',Array,"Additional attributes to add to output as columns, comma separated") {|v| options[:columns].push(v.map(&:to_sym)).flatten! }
   opts.on('-f','--field-separator SEPARATOR',String,"Separator between columns in output (Default: #{options[:separator]})") {|v| options[:separator] = v}
-  opts.on('-a','--add-tags TAGS',Array,"Additional tags to add to output, comma separated") {|v| options[:tags].push(v.map(&:to_sym)).flatten! }
-  opts.on('-x','--expire SECONDS',Integer,"Timeout in seconds (0 == forever)"
-          ) {|v| options[:timeout] << v}
+  opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] << v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 end.parse!
 
@@ -69,7 +62,7 @@ query_opts.merge!(options[:attributes])
 
 assets = collins.find(query_opts)
 if assets.length > 0
-  assets.each {|a| puts options[:tags].map {|t|
+  assets.each {|a| puts options[:columns].map {|t|
       if t == "state"
         a.send(t).label
       else
@@ -78,7 +71,6 @@ if assets.length > 0
     }.join(options[:separator])
   }
 else
-  $stderr.puts "No assets found"
-  exit 1
+  abort "No assets found"
 end
 
