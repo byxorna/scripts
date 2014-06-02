@@ -9,7 +9,6 @@ require 'optparse'
 SUCCESS = "SUCCESS"
 ERROR   = "ERROR"
 options = {
-  :collins_config_file => "/var/db/collins.yaml",
   :query_size => 9999,
   :attributes => {},
   :delete_attributes => [],
