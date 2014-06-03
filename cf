@@ -80,9 +80,7 @@ begin
   assets = collins.find(query_opts)
   if assets.length > 0
     assets.each do |a|
-      puts options[:columns].map do |t|
-        (t == :state) ?  a.send(t).label : a.send(t)
-      end.join(options[:separator])
+      puts options[:columns].map {|t| (t == :state) ?  a.send(t).label : a.send(t)}.join(options[:separator])
     end
   else
     abort "No assets found"
