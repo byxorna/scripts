@@ -27,11 +27,13 @@ OptionParser.new do |opts|
   opts.separator "Examples:"
   opts.separator <<_EOF_
   Set an attribute on some hosts:
-    #{$0} -t 001234,004567 -A my_attribute:true
+    #{$0} -t 001234,004567 -a my_attribute:true
   Delete an attribute on some hosts:
-    #{$0} -t 001234,004567 -D my_attribute
+    #{$0} -t 001234,004567 -d my_attribute
   Read from stdin:
-    cf -n develnode | #{$0} -D my_attribute
+    cf -n develnode | #{$0} -d my_attribute
+    cf -n develnode -S allocated | #{$0} -a collectd_version:5.2.1-52
+    echo -e "001234\n001235\n001236"| #{$0} -a test_attribute:'hello world'
 _EOF_
 end.parse!
 
