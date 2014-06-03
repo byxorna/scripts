@@ -5,32 +5,50 @@
 
 require 'collins_auth'
 require 'yaml'
+require 'optparse'
 
-@hostname = ARGV.shift
-@timeout = 10
+@options = {
+  :password_attr => :system_password,
+  :timeout => 10,
+}
 
-abort "Give me a hostname to connect to" unless @hostname
+OptionParser.new do |opts|
+  opts.banner = "#{$0}: Connects to assets over SSH as root with creds from collins"
+  opts.separator "Usage: #{$0} [hostname]|[-t 001234]"
+  opts.on('-t','--tag TAG',String,'SSH to the asset with TAG') {|v| @options[:tag] = v}
+  opts.on('-p','--attribute ATTR',String,"Use collins attribute ATTR (Default: #{@options[:password_attr]})") {|v| @options[:password_attr] = v.to_sym}
+  opts.on('-h','--help','Show help message') { puts opts ; exit 0 }
+end.parse!
+
+@options[:hostname] = ARGV.shift
+
+abort "Give me a hostname or tag to connect to" if @options[:hostname].nil? and @options[:tag].nil?
 
 begin
-  collins = Collins::Authenticator.setup_client
+  collins = Collins::Authenticator.setup_client timeout: @options[:timeout]
 rescue => e
   abort "Unable to set up collins client! #{e.message}"
 end
 
 begin
-  assets = collins.find(:hostname => @hostname, :details => true)
+  node = if @options[:tag].nil?
+    assets = collins.find(:hostname => @options[:hostname], :details => true)
+    raise "More than 1 node found like #{@options[:hostname]} (found #{assets.length}). Please be more specific...\n#{assets.map {|a| a.hostname}.join "\n"}\n" if assets.length > 1
+    raise "No assets found matching #{@options[:hostname]}" if assets.empty?
+    assets.first
+  else
+    node = collins.get(@options[:tag])
+    raise "No asset found with tag #{@options[:tag]}" if node.nil?
+    node
+  end
 rescue => e
-  abort "Error querying collins! #{e.message}"
+  abort "Error querying collins: #{e.message}"
 end
 
-abort "More than 1 node found like #{@hostname} (found #{assets.length}). Please be more specific...\n#{assets.map {|a| a.hostname}.join "\n"}\n" if assets.length > 1
-abort "No assets found matching #{@hostname}" if assets.empty?
-
-node = assets.first
 puts "Connecting to #{node.hostname} as root..."
 
 # set the password in the env instead of letting it sit on the command line
-ENV['SYSTEM_P'] = node.system_password
+ENV['SYSTEM_P'] = node.send(@options[:password_attr])
 ENV['SYSTEM_H'] = node.hostname
 
 exec <<_EXPECT_
