@@ -79,14 +79,11 @@ query_opts.merge!(options[:attributes])
 begin
   assets = collins.find(query_opts)
   if assets.length > 0
-    assets.each {|a| puts options[:columns].map {|t|
-        if t == "state"
-          a.send(t).label
-        else
-          a.send(t)
-        end
-      }.join(options[:separator])
-    }
+    assets.each do |a|
+      puts options[:columns].map do |t|
+        (t == :state) ?  a.send(t).label : a.send(t)
+      end.join(options[:separator])
+    end
   else
     abort "No assets found"
   end
