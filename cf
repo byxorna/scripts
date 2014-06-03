@@ -35,7 +35,7 @@ OptionParser.new do |opts|
   opts.on('-c','--columns ATTRIBUTES',Array,"Attributes to output as columns, comma separated (Default: #{options[:columns].map(&:to_s).join(',')})") {|v| options[:columns] = v.map(&:to_sym)}
   opts.on('-x','--extra-columns ATTRIBUTES',Array,"Additional attributes to add to output as columns, comma separated") {|v| options[:columns].push(v.map(&:to_sym)).flatten! }
   opts.on('-f','--field-separator SEPARATOR',String,"Separator between columns in output (Default: #{options[:separator]})") {|v| options[:separator] = v}
-  opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] << v}
+  opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 
   opts.separator <<_EXAMPLES_
@@ -59,7 +59,7 @@ abort "You need to query for _something_, see --help" if
   selector_keys.all? {|key| options[key].nil?} and options[:attributes].empty?
 
 begin
-  collins = Collins::Authenticator.setup_client
+  collins = Collins::Authenticator.setup_client timeout: options[:timeout]
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end
