@@ -62,10 +62,12 @@ end.parse!
 abort "You need to tell me to do _something_, see --help" if options[:attributes].empty? and options[:delete_attributes].empty? and options[:status].nil?
 abort "You need to provide a --reason when changing asset states!" if not options[:status].nil? and options[:reason].nil?
 
-#TODO: if any statuses or states, should we validate them before progressing?
-abort "Invalid status #{options[:status]} (Should be in #{valid_statuses.join(', ')})" unless valid_statuses.include? options[:status]
+# if any statuses or states, validate them against allowed values
+unless options[:status].nil?
+  abort "Invalid status #{options[:status]} (Should be in #{valid_statuses.join(', ')})" unless valid_statuses.include? options[:status]
 states_for_status = valid_states["ANY"].concat((valid_states[options[:status]].nil?) ? [] : valid_states[options[:status]])
-abort "State #{options[:state]} doesn't apply to status #{options[:status]} (Should be one of #{states_for_status.join(', ')})" unless options[:state].nil? or states_for_status.include?(options[:state])
+  abort "State #{options[:state]} doesn't apply to status #{options[:status]} (Should be one of #{states_for_status.join(', ')})" unless options[:state].nil? or states_for_status.include?(options[:state])
+end
 
 if options[:tags].nil? or options[:tags].empty?
   # read tags from stdin. first field on the line is the tag
