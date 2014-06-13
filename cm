@@ -14,7 +14,7 @@ valid_states = {
   "MAINTENANCE" => ["AWAITING_REVIEW","HARDWARE_PROBLEM","HW_TESTING","HARDWARE_UPGRADE","IPMI_PROBLEM","MAINT_NOOP","NETWORK_PROBLEM","RELOCATION"],
   "ANY" => ["RUNNING","STARTING","STOPPING","TERMINATED"],
 }
-log_levels = ['EMERGENCY','ALERT','CRITICAL','ERROR','WARNING','NOTICE','INFORMATIONAL','DEBUG','NOTE']
+log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
 
 options = {
   :query_size => 9999,
@@ -82,7 +82,7 @@ end.parse!
 abort "You need to tell me to do _something_, see --help" if options[:attributes].empty? and options[:delete_attributes].empty? and options[:status].nil? and options[:log_message].nil?
 abort "You need to provide a --reason when changing asset states!" if not options[:status].nil? and options[:reason].nil?
 #TODO this is never checked because we are making option parser vet our options for levels. Catch OptionParser::InvalidArgument?
-abort "Log level #{options[:log_level]} is invalid! Use one of #{log_levels.join(', ')}" unless log_levels.include? options[:log_level]
+abort "Log level #{options[:log_level]} is invalid! Use one of #{log_levels.join(', ')}" unless Collins::Api::Logging::Severity.valid?(options[:log_level])
 
 # if any statuses or states, validate them against allowed values
 unless options[:status].nil?
@@ -98,42 +98,34 @@ if options[:tags].nil? or options[:tags].empty?
 end
 
 begin
-  collins = Collins::Authenticator.setup_client
+  @collins = Collins::Authenticator.setup_client
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
+end
+
+def api_call desc, method, *varargs
+  success,message = begin
+    [@collins.send(method,*varargs),nil]
+  rescue => e
+    [false,e.message]
+  end
+  puts "#{success ? SUCCESS : ERROR}: #{desc}#{message.nil? ? nil : " (%s)" % e.message}"
+  success
 end
 
 exit_clean = true
 options[:tags].each do |t|
   if options[:log_message]
-    api_call "create log", :log!, t, options[:log_message], options[:log_level]
+    exit_clean = api_call("#{t} create #{options[:log_level].downcase} log #{options[:log_message].inspect}", :log!, t, options[:log_message], options[:log_level]) && exit_clean
   end
   options[:attributes].each do |k,v|
-    success,message = begin
-      [collins.set_attribute!(t,k,v),nil]
-    rescue => e
-      [false,e.message]
-    end
-    exit_clean = success && exit_clean
-    puts "#{success ? SUCCESS : ERROR}: #{t} set #{k}=#{v}#{message.nil? ? nil : " (%s)" % e.message}"
+    exit_clean = api_call("#{t} set #{k}=#{v}", :set_attribute!, t, k, v) && exit_clean
   end
   options[:delete_attributes].each do |k|
-    success,message = begin
-      [collins.delete_attribute!(t,k),nil]
-    rescue => e
-      [false,e.message]
-    end
-    exit_clean = success && exit_clean
-    puts "#{success ? SUCCESS : ERROR}: #{t} delete #{k}#{message.nil? ? nil : " (%s)" % e.message}"
+    exit_clean = api_call("#{t} delete #{k}", :delete_attribute!, t, k) && exit_clean
   end
   if options[:status]
-    success,message = begin
-      [collins.set_status!(t, :status => options[:status], :state => options[:state], :reason => options[:reason]), nil]
-    rescue => e
-      [false,e.message]
-    end
-    exit_clean = success && exit_clean
-    puts "#{success ? SUCCESS : ERROR}: #{t} set status to #{options[:status]}#{options[:state] ? ":#{options[:state]}" : ''}#{message.nil? ? nil : " (%s)" % e.message}"
+    exit_clean = api_call("#{t} set status to #{options[:status]}#{options[:state] ? ":#{options[:state]}" : ''}", :set_status!, t, :status => options[:status], :state => options[:state], :reason => options[:reason]) && exit_clean
   end
 end
 
