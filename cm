@@ -14,11 +14,13 @@ valid_states = {
   "MAINTENANCE" => ["AWAITING_REVIEW","HARDWARE_PROBLEM","HW_TESTING","HARDWARE_UPGRADE","IPMI_PROBLEM","MAINT_NOOP","NETWORK_PROBLEM","RELOCATION"],
   "ANY" => ["RUNNING","STARTING","STOPPING","TERMINATED"],
 }
+log_levels = ['EMERGENCY','ALERT','CRITICAL','ERROR','WARNING','NOTICE','INFORMATIONAL','DEBUG','NOTE']
 
 options = {
   :query_size => 9999,
   :attributes => {},
   :delete_attributes => [],
+  :log_level => 'NOTE'
 }
 
 OptionParser.new do |opts|
@@ -34,8 +36,24 @@ OptionParser.new do |opts|
     options[:state] = state.upcase unless state.nil?
   end
   opts.on('-r','--reason REASON',String,"Reason for changing status/state.") {|v| options[:reason] = v }
+  opts.on('-l','--log MESSAGE',String,"Create a log entry.") do |v|
+    options[:log_message] = v
+  end
+  opts.on('-L','--level LEVEL',String, log_levels + log_levels.map(&:downcase),"Set log level. Default level is #{options[:log_level]}.") do |v|
+    options[:log_level] = v.upcase
+  end
   opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| options[:tags] = v.map(&:to_sym)}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
+  opts.separator ""
+  opts.separator "Allowed values (uppercase or lowercase is accepted):"
+  opts.separator <<_EOF_
+  Status (-S,--set-status):
+    #{valid_statuses.join(', ')}
+  States (-S,--set-status):
+    #{valid_states.keys.map {|k| "#{k} ->\n      #{valid_states[k].join(', ')}"}.join "\n    "}
+  Log levels (-L,--level):
+    #{log_levels.join(', ')}
+_EOF_
   opts.separator ""
   opts.separator "Examples:"
   opts.separator <<_EOF_
@@ -51,6 +69,8 @@ OptionParser.new do |opts|
     #{$0} -t 001234 -S allocated:running -r "Back to allocated"
   Set machine back to new without setting state:
     #{$0} -t 001234 -S new -r "Dunno why you would want this"
+  Create a log entry:
+    #{$0} -t 001234 -l'computers are broken and everything is horrible' -Lwarning
   Read from stdin:
     cf -n develnode | #{$0} -d my_attribute
     cf -n develnode -S allocated | #{$0} -a collectd_version:5.2.1-52
@@ -59,8 +79,10 @@ _EOF_
 end.parse!
 
 
-abort "You need to tell me to do _something_, see --help" if options[:attributes].empty? and options[:delete_attributes].empty? and options[:status].nil?
+abort "You need to tell me to do _something_, see --help" if options[:attributes].empty? and options[:delete_attributes].empty? and options[:status].nil? and options[:log_message].nil?
 abort "You need to provide a --reason when changing asset states!" if not options[:status].nil? and options[:reason].nil?
+#TODO this is never checked because we are making option parser vet our options for levels. Catch OptionParser::InvalidArgument?
+abort "Log level #{options[:log_level]} is invalid! Use one of #{log_levels.join(', ')}" unless log_levels.include? options[:log_level]
 
 # if any statuses or states, validate them against allowed values
 unless options[:status].nil?
@@ -83,6 +105,9 @@ end
 
 exit_clean = true
 options[:tags].each do |t|
+  if options[:log_message]
+    api_call "create log", :log!, t, options[:log_message], options[:log_level]
+  end
   options[:attributes].each do |k,v|
     success,message = begin
       [collins.set_attribute!(t,k,v),nil]
