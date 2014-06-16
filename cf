@@ -6,30 +6,51 @@ require 'collins_auth'
 require 'yaml'
 require 'optparse'
 
+# this gets stuffed into the collins find call
+query_opts = {
+  :operation => 'AND',
+  :size => 9999,
+}
+# these are all the attributes we search for
+# may be converted into a CQL query
+search_attrs = { }
 options = {
-  :query_size => 9999,
   :separator => "\t",
   :attributes => {},            # additional attributes to query for
   :columns => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
-  :timeout => 10                # default in collins_client library
+  :timeout => 10,               # default in collins_client library
 }
 
-selector_keys = [:nodeclass, :pool, :hostname, :primary_role, :secondary_role, :status, :hardware_product, :tag]
+#selector_keys = [:nodeclass, :pool, :hostname, :primary_role, :secondary_role, :status, :hardware_product, :tag]
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options] [hostnamepattern]"
   opts.separator "Query options:"
-  opts.on('-t','--tag TAG',String, "Assets with tag TAG") {|v| options[:tag] = v}
-  opts.on('-n','--nodeclass NODECLASS',String, "Assets in nodeclass NODECLASS") {|v| options[:nodeclass] = v}
-  opts.on('-p','--pool POOL',String, "Assets in pool POOL") {|v| options[:pool] = v}
-  opts.on('-s','--size SIZE',Integer, "Number of assets to return") {|v| options[:query_size] = v}
-  opts.on('-r','--role ROLE',String,"Assets in primary role ROLE") {|v| options[:primary_role] = v}
-  opts.on('-R','--secondary-role ROLE',String,"Assets in secondary role ROLE") {|v| options[:secondary_role] = v}
-  opts.on('-H','--hardware-product PRODUCT',String,"Assets with formal product model PRODUCT") {|v| options[:hardware_product] = v}
-  opts.on('-S','--status STATUS',String,"Asset Status") {|v| options[:status] = v}
-  opts.on('-a','--attribute attribute:value',String,"Arbitrary attributes and values to match in query. : between key and value") do |x|
-    a,v = x.split(':')
-    options[:attributes][a.to_sym] = v
+  opts.on('-t','--tag TAG[,...]',Array, "Assets with tag[s] TAG") do |v|
+    search_attrs[:tag] = (v.length == 1) ? v.first : v
+  end
+  opts.on('-n','--nodeclass NODECLASS[,...]',Array, "Assets in nodeclass NODECLASS") {|v| search_attrs[:nodeclass] = v}
+  opts.on('-p','--pool POOL[,...]',Array, "Assets in pool POOL") {|v| search_attrs[:pool] = v}
+  opts.on('-s','--size SIZE',Integer, "Number of assets to return (Default: #{query_opts[:size]})") {|v| query_opts[:size] = v}
+  opts.on('-r','--role ROLE[,...]',Array,"Assets in primary role ROLE") {|v| search_attrs[:primary_role] = v}
+  opts.on('-R','--secondary-role ROLE[,...]',Array,"Assets in secondary role ROLE") {|v| search_attrs[:secondary_role] = v}
+  opts.on('-H','--hardware-product PRODUCT[,...]',Array,"Assets with formal product model PRODUCT") {|v| search_attrs[:hardware_product] = v}
+  opts.on('-S','--status STATUS[,...]',Array,"Asset Status") {|v| search_attrs[:status] = v}
+  opts.on('-a','--attribute attribute:value[,...]',String,"Arbitrary attributes and values to match in query. : between key and value") do |x|
+    x.split(',').each do |p|
+      a,v = p.split(':')
+      a = a.to_sym
+      if not search_attrs[a].nil? and not search_attrs[a].is_a? Array
+        # its a single value, turn it into an array
+        search_attrs[a] = [search_attrs[a]]
+      end
+      if search_attrs[a].is_a? Array
+        # already multivalue, append
+        search_attrs[a] << v
+      else
+        search_attrs[a] = v
+      end
+    end
   end
   opts.separator "Formatting/extra options:"
   opts.on('-c','--columns ATTRIBUTES',Array,"Attributes to output as columns, comma separated (Default: #{options[:columns].map(&:to_s).join(',')})") {|v| options[:columns] = v.map(&:to_sym)}
@@ -52,29 +73,48 @@ _EXAMPLES_
 end.parse!
 
 # hostname is the final option, no flags
-options[:hostname] = ARGV.shift
+search_attrs[:hostname] = ARGV.shift
 
 # if nothing passed to us, lets not search for EVERYTHING
-abort "You need to query for _something_, see --help" if
-  selector_keys.all? {|key| options[key].nil?} and options[:attributes].empty?
+#abort "You need to query for _something_, see --help" if
+#  selector_keys.all? {|key| options[key].nil?} and options[:attributes].empty?
+
+# for any search attributes, lets not pass arrays of 1 element
+# as that will confuse as_query?
+search_attrs.each do |k,v|
+  if v.is_a? Array and v.length == 1
+    search_attrs[k] = v.first
+  end
+end
+
+def as_query?(attrs)
+  attrs.any?{|k,v| v.is_a? Array}
+end
+
+def convert_to_query(op, attrs)
+  attrs.map do |k,v|
+    next if v.nil?
+    if v.is_a? Array
+      "(" + v.map{|x| "#{k} = #{x}"}.join(' OR ') + ")"
+    else
+      "#{k} = #{v}"
+    end
+  end.compact.join(" #{op} ")
+end
+
+# merge search_attrs into query
+if as_query?(search_attrs)
+  #puts "Query: #{query_opts[:query]}"
+  query_opts[:query] = convert_to_query(query_opts[:operation],search_attrs)
+else
+  query_opts.merge!(search_attrs)
+end
 
 begin
   collins = Collins::Authenticator.setup_client timeout: options[:timeout]
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end
-
-query_opts = {
-  :operation => 'AND',
-  :size => options[:query_size]
-}
-
-selector_keys.each {|key|
-  query_opts[key] = options[key] if options[key]
-}
-# now populate any other attributes
-query_opts.merge!(options[:attributes])
-
 
 begin
   assets = collins.find(query_opts)
