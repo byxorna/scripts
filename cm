@@ -32,8 +32,8 @@ OptionParser.new do |opts|
   opts.on('-d','--delete-attribute attribute',String,"Delete attribute.") {|v| options[:delete_attributes] << v.to_sym }
   opts.on('-S','--set-status status[:state]',String,'Set status (and optionally state) to status:state. Requires --reason') do |v|
     status,state = v.split(':')
-    options[:status] = status.upcase
-    options[:state] = state.upcase unless state.nil?
+    options[:status] = status.upcase if not status.nil? and not status.empty?
+    options[:state] = state.upcase if not state.nil? and not state.empty?
   end
   opts.on('-r','--reason REASON',String,"Reason for changing status/state.") {|v| options[:reason] = v }
   opts.on('-l','--log MESSAGE',String,"Create a log entry.") do |v|
