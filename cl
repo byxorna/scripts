@@ -6,6 +6,7 @@
 # TODO: implement filtering severities
 # TODO: add options to sort ascending or descending on date
 # TODO: implement searching logs (is this really useful?)
+# TODO: add duplicate line detection and compression (...)
 
 require 'collins_auth'
 require 'yaml'
