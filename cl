@@ -5,6 +5,7 @@
 # TODO: implement -f --follow polling
 # TODO: implement filtering severities
 # TODO: add options to sort ascending or descending on date
+# TODO: implement searching logs (is this really useful?)
 
 require 'collins_auth'
 require 'yaml'
