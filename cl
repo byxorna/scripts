@@ -12,16 +12,16 @@ require 'collins_auth'
 require 'yaml'
 require 'optparse'
 
-#log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
+log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
 
 options = {
   :tags => [],
   :show_all => false,
-  #:interleave => false,
+  :severities => [],
 }
 search_opts = {
   :size => 20,
-  :log_levels => []
+  :filter => nil,
 }
 
 OptionParser.new do |opts|
@@ -29,12 +29,28 @@ OptionParser.new do |opts|
   opts.on('-a','--all',"Show logs from ALL assets") {|v| options[:show_all] = true}
   opts.on('-n','--number LINES',Integer,"Show the last LINES log entries. (Default: #{search_opts[:size]})") {|v| search_opts[:size] = v}
   opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| options[:tags] = v}
+  opts.on('-s','--severity SEVERITY[,...]',Array,"Log severities to return (Defaults to all). Use !SEVERITY to exclude one.") {|v| options[:severities] = v.map(&:upcase) }
   #opts.on('-i','--interleave',"Interleave all log entries (Default: groups by asset)") {|v| options[:interleave] = true}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
+  opts.separator ""
+  opts.separator <<_EOE_
+Examples:
+  Show last 20 logs for an asset
+    #{$0} -t 001234
+  Show last 100 logs for an asset
+    #{$0} -t 001234 -n100
+  Show last 10 logs for 2 assets that are ERROR severity
+    #{$0} -t 001234,001235 -n10 -sERROR
+  Show last 10 logs all assets that are not note or informational severity
+    #{$0} -a -n10 -s'!informational,!note'
+  Show last 10 logs for all web nodes that are provisioned having verification in the message
+    cf -S provisioned -n webnode\$ | #{$0} -n10 -s debug | grep -i verification
+_EOE_
 end.parse!
 
 
-#abort "Log level #{options[:log_level]} is invalid! Use one of #{log_levels.join(', ')}" unless Collins::Api::Logging::Severity.valid?(options[:log_level])
+abort "Log severities #{options[:severities].join(',')} are invalid! Use one of #{log_levels.join(', ')}" unless options[:severities].all? {|l| Collins::Api::Logging::Severity.valid?(l.tr('!','')) }
+search_opts[:filter] = options[:severities].join(';')
 
 if options[:tags].empty? and not options[:show_all]
   # read tags from stdin. first field on the line is the tag
@@ -62,7 +78,11 @@ def output_logs(logs)
 end
 
 if options[:tags].empty?
-  logs = @collins.all_logs(search_opts)
+  begin
+    logs = @collins.all_logs(search_opts)
+  rescue => e
+    abort "Unable to fetch logs: #{e.message}"
+  end
   output_logs(logs)
 else
   # query for logs for each asset
