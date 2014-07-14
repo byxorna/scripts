@@ -11,13 +11,25 @@
 require 'collins_auth'
 require 'yaml'
 require 'optparse'
+require 'colorize'
 
 log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
 
-options = {
+@options = {
   :tags => [],
   :show_all => false,
   :severities => [],
+  :sev_colors => {
+    'EMERGENCY'     => {:color => :red, :background => :light_blue},
+    'ALERT'         => {:color => :red},
+    'CRITICAL'      => {:color => :black, :background => :red},
+    'ERROR'         => {:color => :red},
+    'WARNING'       => {:color => :yellow},
+    'NOTICE'        => {},
+    'INFORMATIONAL' => {:color => :green},
+    'DEBUG'         => {:color => :blue},
+    'NOTE'          => {:color => :light_cyan},
+  },
 }
 search_opts = {
   :size => 20,
@@ -26,10 +38,10 @@ search_opts = {
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
-  opts.on('-a','--all',"Show logs from ALL assets") {|v| options[:show_all] = true}
+  opts.on('-a','--all',"Show logs from ALL assets") {|v| @options[:show_all] = true}
   opts.on('-n','--number LINES',Integer,"Show the last LINES log entries. (Default: #{search_opts[:size]})") {|v| search_opts[:size] = v}
-  opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| options[:tags] = v}
-  opts.on('-s','--severity SEVERITY[,...]',Array,"Log severities to return (Defaults to all). Use !SEVERITY to exclude one.") {|v| options[:severities] = v.map(&:upcase) }
+  opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| @options[:tags] = v}
+  opts.on('-s','--severity SEVERITY[,...]',Array,"Log severities to return (Defaults to all). Use !SEVERITY to exclude one.") {|v| @options[:severities] = v.map(&:upcase) }
   #opts.on('-i','--interleave',"Interleave all log entries (Default: groups by asset)") {|v| options[:interleave] = true}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
   opts.separator ""
@@ -49,16 +61,16 @@ _EOE_
 end.parse!
 
 
-abort "Log severities #{options[:severities].join(',')} are invalid! Use one of #{log_levels.join(', ')}" unless options[:severities].all? {|l| Collins::Api::Logging::Severity.valid?(l.tr('!','')) }
-search_opts[:filter] = options[:severities].join(';')
+abort "Log severities #{@options[:severities].join(',')} are invalid! Use one of #{log_levels.join(', ')}" unless @options[:severities].all? {|l| Collins::Api::Logging::Severity.valid?(l.tr('!','')) }
+search_opts[:filter] = @options[:severities].join(';')
 
-if options[:tags].empty? and not options[:show_all]
+if @options[:tags].empty? and not @options[:show_all]
   # read tags from stdin. first field on the line is the tag
   input = $stdin.readlines
-  options[:tags] = input.map{|l| l.split(/\s+/)[0] rescue nil}.compact.uniq
+  @options[:tags] = input.map{|l| l.split(/\s+/)[0] rescue nil}.compact.uniq
 end
 
-abort "You need to give me some assets to look at; see --help" if options[:tags].empty? and not options[:show_all]
+abort "You need to give me some assets to look at; see --help" if @options[:tags].empty? and not @options[:show_all]
 
 begin
   @collins = Collins::Authenticator.setup_client
@@ -67,6 +79,11 @@ rescue => e
 end
 
 def output_logs(logs)
+  # colorize output before computing width of fields
+  logs.map! do |l|
+    l.TYPE = @options[:sev_colors].has_key?(l.TYPE) ? l.TYPE.colorize(@options[:sev_colors][l.TYPE]) : l.TYPE
+    l
+  end
   # show newest last
   sorted_logs = logs.sort_by {|l| l.CREATED }
   tag_width = sorted_logs.map{|l| l.ASSET_TAG.length}.max
@@ -77,7 +94,7 @@ def output_logs(logs)
   end
 end
 
-if options[:tags].empty?
+if @options[:tags].empty?
   begin
     logs = @collins.all_logs(search_opts)
   rescue => e
@@ -86,7 +103,7 @@ if options[:tags].empty?
   output_logs(logs)
 else
   # query for logs for each asset
-  logs = options[:tags].flat_map do |t|
+  logs = @options[:tags].flat_map do |t|
     begin
       @collins.logs(t, search_opts)
     rescue => e
