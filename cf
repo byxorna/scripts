@@ -22,6 +22,7 @@ options = {
   :attributes => {},            # additional attributes to query for
   :columns => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
   :timeout => 10,               # default in collins_client library
+  :show_header => false,        # if the header for columns should be displayed
 }
 
 #selector_keys = [:nodeclass, :pool, :hostname, :primary_role, :secondary_role, :status, :hardware_product, :tag]
@@ -35,7 +36,7 @@ OptionParser.new do |opts|
   opts.on('-s','--size SIZE',Integer, "Number of assets to return (Default: #{query_opts[:size]})") {|v| query_opts[:size] = v}
   opts.on('-r','--role ROLE[,...]',Array,"Assets in primary role ROLE") {|v| search_attrs[:primary_role] = v}
   opts.on('-R','--secondary-role ROLE[,...]',Array,"Assets in secondary role ROLE") {|v| search_attrs[:secondary_role] = v}
-  opts.on('-H','--hardware-product PRODUCT[,...]',Array,"Assets with formal product model PRODUCT") {|v| search_attrs[:hardware_product] = v}
+  opts.on('-H','--show-header',"Show header fields in output") {options[:show_header] = true}
   opts.on('-S','--status STATUS[:STATE][,...]',Array,"Asset status (and optional state after :)") do |v|
     # in order to know what state was paired with what status, lets store the original params
     # so the query constructor can create the correct CQL query
@@ -47,7 +48,7 @@ OptionParser.new do |opts|
       memo
     end
   end
-  opts.on('-a','--attribute attribute:value[,...]',String,"Arbitrary attributes and values to match in query. : between key and value") do |x|
+  opts.on('-a','--attribute attribute[:value[,...]]',String,"Arbitrary attributes and values to match in query. : between key and value") do |x|
     x.split(',').each do |p|
       a,v = p.split(':')
       a = a.to_sym
@@ -80,6 +81,8 @@ Examples:
       cf -a is_vm:true -S decommissioned
     Query for hosts matching hostname 'web6-'
       cf web6-
+    Query for all develnode6 nodes with a value for PUPPET_SERVER
+      cf -n develnode6 -a puppet_server -H
 _EXAMPLES_
 end.parse!
 
@@ -144,11 +147,24 @@ end
 
 begin
   # the columns to display should be options[:columns] + any extra attributes queried for
-  columns = options[:columns].concat(search_attrs.reject{|k,v| v.nil?}.keys).compact.uniq
   assets = collins.find(query_opts)
   if assets.length > 0
+    # these are the columns we want to display
+    columns = options[:columns].concat(search_attrs.keys).compact.uniq
+    # lets figure out how wide each column is, including header
+    column_width_pairs = columns.map do |column|
+      # grab all attributes == column and figure out max width
+      width = assets.map{|a| (column == :state) ?  a.send(column).label.to_s.length : a.send(column).to_s.length}.max
+      width = [width, column.to_s.length].max if options[:show_header]
+      [column,width]
+    end
+    column_width_map = Hash[column_width_pairs]
+
+    if options[:show_header]
+      $stderr.puts column_width_map.map{|c,w| "%-#{w}s" % c}.join(options[:separator])
+    end
     assets.each do |a|
-      puts columns.map {|t| (t == :state) ?  a.send(t).label : a.send(t)}.join(options[:separator])
+      puts column_width_map.map {|c,w| v = (c == :state) ?  a.send(c).label : a.send(c) ; "%-#{w}s" % v }.join(options[:separator])
     end
   else
     abort "No assets found"
