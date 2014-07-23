@@ -143,11 +143,12 @@ rescue => e
 end
 
 begin
-  #puts query_opts.inspect
+  # the columns to display should be options[:columns] + any extra attributes queried for
+  columns = options[:columns].concat(search_attrs.reject{|k,v| v.nil?}.keys).compact.uniq
   assets = collins.find(query_opts)
   if assets.length > 0
     assets.each do |a|
-      puts options[:columns].map {|t| (t == :state) ?  a.send(t).label : a.send(t)}.join(options[:separator])
+      puts columns.map {|t| (t == :state) ?  a.send(t).label : a.send(t)}.join(options[:separator])
     end
   else
     abort "No assets found"
