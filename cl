@@ -2,7 +2,7 @@
 # stands for collins-log
 # looks at logs on assets
 
-# TODO: implement -f --follow polling
+# TODO: make poll_wait tunable
 # TODO: add options to sort ascending or descending on date
 # TODO: implement searching logs (is this really useful?)
 # TODO: add duplicate line detection and compression (...)
@@ -11,12 +11,15 @@ require 'collins_auth'
 require 'yaml'
 require 'optparse'
 require 'colorize'
+require 'set'
 
 log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
 
 @options = {
   :tags => [],
   :show_all => false,
+  :poll_wait => 2,
+  :follow => false,
   :severities => [],
   :sev_colors => {
     'EMERGENCY'     => {:color => :red, :background => :light_blue},
@@ -30,7 +33,7 @@ log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
     'NOTE'          => {:color => :light_cyan},
   },
 }
-search_opts = {
+@search_opts = {
   :size => 20,
   :filter => nil,
 }
@@ -38,8 +41,9 @@ search_opts = {
 OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
   opts.on('-a','--all',"Show logs from ALL assets") {|v| @options[:show_all] = true}
-  opts.on('-n','--number LINES',Integer,"Show the last LINES log entries. (Default: #{search_opts[:size]})") {|v| search_opts[:size] = v}
+  opts.on('-n','--number LINES',Integer,"Show the last LINES log entries. (Default: #{@search_opts[:size]})") {|v| @search_opts[:size] = v}
   opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| @options[:tags] = v}
+  opts.on('-f','--follow',"Poll for logs every #{@options[:poll_wait]} seconds") {|v| @options[:follow] = true}
   opts.on('-s','--severity SEVERITY[,...]',Array,"Log severities to return (Defaults to all). Use !SEVERITY to exclude one.") {|v| @options[:severities] = v.map(&:upcase) }
   #opts.on('-i','--interleave',"Interleave all log entries (Default: groups by asset)") {|v| options[:interleave] = true}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
@@ -63,7 +67,7 @@ end.parse!
 
 
 abort "Log severities #{@options[:severities].join(',')} are invalid! Use one of #{log_levels.join(', ')}" unless @options[:severities].all? {|l| Collins::Api::Logging::Severity.valid?(l.tr('!','')) }
-search_opts[:filter] = @options[:severities].join(';')
+@search_opts[:filter] = @options[:severities].join(';')
 
 if @options[:tags].empty? and not @options[:show_all]
   # read tags from stdin. first field on the line is the tag
@@ -95,24 +99,39 @@ def output_logs(logs)
   end
 end
 
-if @options[:tags].empty?
-  begin
-    logs = @collins.all_logs(search_opts)
-  rescue => e
-    abort "Unable to fetch logs: #{e.message}"
-  end
-  output_logs(logs)
-else
-  # query for logs for each asset
-  logs = @options[:tags].flat_map do |t|
+def grab_logs
+  if @options[:tags].empty?
     begin
-      @collins.logs(t, search_opts)
+      @collins.all_logs(@search_opts)
     rescue => e
-      $stderr.puts "Unable to fetch logs for #{t}: #{e.message}"
+      $stderr.puts "Unable to fetch logs:".colorize(@options[:sev_colors]['WARNING']) + " #{e.message}"
       []
     end
+  else
+    @options[:tags].flat_map do |t|
+      begin
+        @collins.logs(t, @search_opts)
+      rescue => e
+        $stderr.puts "Unable to fetch logs for #{t}:".colorize(@options[:sev_colors]['WARNING']) + " #{e.message}"
+        []
+      end
+    end
   end
-  output_logs(logs)
+end
+
+begin
+  all_logs = grab_logs
+  logs_seen = all_logs.map(&:ID).to_set
+  output_logs(all_logs)
+  while @options[:follow]
+    sleep @options[:poll_wait]
+    logs = grab_logs
+    new_logs = logs.reject {|l| logs_seen.include?(l.ID)}
+    output_logs(new_logs)
+    logs_seen = logs_seen | new_logs.map(&:ID)
+  end
+rescue Interrupt => e
+  exit 0
 end
 
 
