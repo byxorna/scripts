@@ -3,7 +3,6 @@
 # looks at logs on assets
 
 # TODO: implement -f --follow polling
-# TODO: implement filtering severities
 # TODO: add options to sort ascending or descending on date
 # TODO: implement searching logs (is this really useful?)
 # TODO: add duplicate line detection and compression (...)
@@ -46,6 +45,8 @@ OptionParser.new do |opts|
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
   opts.separator ""
   opts.separator <<_EOE_
+Severities:
+  #{Collins::Api::Logging::Severity.to_a.join(", ")}
 Examples:
   Show last 20 logs for an asset
     #{$0} -t 001234
