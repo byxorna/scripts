@@ -46,7 +46,7 @@ OptionParser.new do |opts|
   opts.separator ""
   opts.separator <<_EOE_
 Severities:
-  #{Collins::Api::Logging::Severity.to_a.join(", ")}
+  #{Collins::Api::Logging::Severity.to_a.map{|s| s.colorize(@options[:sev_colors][s])}.join(", ")}
 Examples:
   Show last 20 logs for an asset
     #{$0} -t 001234
