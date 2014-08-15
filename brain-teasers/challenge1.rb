@@ -31,18 +31,15 @@ def _find_solution(memo, k, target, path)
     return nil
   end
   # lets see if we can find a valid path
-  #puts "i have #{memo} and #{k} with #{path.inspect} so far"
   v2 = k.first
   [:+,:-,:*,:/].each do |op|
     # if mod is non-zero, its an illegal move, so skip this branch
-    #puts "#{path.join " "} ? #{op}"
     unless op == :/ and memo % v2 != 0
       # apply operator
       partial = memo.send(op, v2)
       # test is valid thus far
       if _is_valid_partial_res?(partial)
         # recurse depth first to find a solution
-        #puts "accumulated #{partial}, recursing on #{k}, #{path + [op]}"
         sol = _find_solution(partial,k[1..-1],target, path + [op])
         # if nothing found down this fork, keep going
         return sol unless sol.nil?
@@ -58,8 +55,6 @@ def _is_valid_partial_res?(partial)
 end
 
 sets.each_with_index do |test,i|
-  #puts "Working on test #{i+1} of #{num_tests}"
-  #puts "  #{test.inspect}"
   solution = find_solution(test[:vals], test[:target])
   if solution.nil?
     puts "NO EXPRESSION"
