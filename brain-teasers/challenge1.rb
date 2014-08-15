@@ -7,8 +7,7 @@
 # print NO SOLUTION if no combination of operators will arrive at target, or the solution equation
 # target between -32000 and +32000 inclusive, cannot divide a partial solution with a remainder
 
-file = ARGV[0]
-lines = File.read(file).lines
+lines = ARGF.read.lines
 
 num_tests = lines[0].strip.to_i
 sets = lines[1..-1].map do |l|
