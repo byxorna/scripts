@@ -8,6 +8,7 @@ require 'optparse'
 
 #TODO: querying for :status or :state with -a status:maintenance doesnt play nice with -Smaintenance,allocated
 #TODO: we construct the query for states and statuses only from the parameters to --status (ignoring any -a attributes)
+#TODO: add a formatting option to display the assets in a different way (not a table)
 
 # this gets stuffed into the collins find call
 query_opts = {
@@ -21,6 +22,7 @@ options = {
   :separator => "\t",
   :attributes => {},            # additional attributes to query for
   :columns => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
+  :column_override => [],       # if set, these are the columns to display
   :timeout => 10,               # default in collins_client library
   :show_header => false,        # if the header for columns should be displayed
 }
@@ -65,7 +67,7 @@ OptionParser.new do |opts|
     end
   end
   opts.separator "Formatting/extra options:"
-  opts.on('-c','--columns ATTRIBUTES',Array,"Attributes to output as columns, comma separated (Default: #{options[:columns].map(&:to_s).join(',')})") {|v| options[:columns] = v.map(&:to_sym)}
+  opts.on('-c','--columns ATTRIBUTES',Array,"Attributes to output as columns, comma separated (Default: #{options[:columns].map(&:to_s).join(',')})") {|v| options[:column_override] = v.map(&:to_sym)}
   opts.on('-x','--extra-columns ATTRIBUTES',Array,"Additional attributes to add to output as columns, comma separated") {|v| options[:columns].push(v.map(&:to_sym)).flatten! }
   opts.on('-f','--field-separator SEPARATOR',String,"Separator between columns in output (Default: #{options[:separator]})") {|v| options[:separator] = v}
   opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] = v}
@@ -79,8 +81,8 @@ Examples:
       cf -t 001234 -x system_password
     Query for all decommissioned VM assets
       cf -a is_vm:true -S decommissioned
-    Query for hosts matching hostname 'web6-'
-      cf web6-
+    Query for hosts matching hostname '^web6-'
+      cf ^web6-
     Query for all develnode6 nodes with a value for PUPPET_SERVER
       cf -n develnode6 -a puppet_server -H
 _EXAMPLES_
@@ -131,6 +133,9 @@ def convert_to_query(op, attrs, options)
   [basic_query,"( #{status_query} )"].reject {|q| q.nil? or q.empty?}.join(" #{op} ")
 end
 
+def display_as_table(assets)
+end
+
 # merge search_attrs into query
 if as_query?(search_attrs)
   query_opts[:query] = convert_to_query(query_opts[:operation],search_attrs, options)
@@ -146,11 +151,16 @@ rescue => e
 end
 
 begin
-  # the columns to display should be options[:columns] + any extra attributes queried for
   assets = collins.find(query_opts)
   if assets.length > 0
-    # these are the columns we want to display
-    columns = options[:columns].concat(search_attrs.keys).compact.uniq
+    # if the user passed :column_override, respect that absolutely. otherwise, the columns to display
+    # should be options[:columns] + any extra attributes queried for. this way ```cf -c hostname -a is_vm:true```
+    # wont return 2 columns; only the one you asked for
+    columns = if options[:column_override].empty?
+                options[:columns].concat(search_attrs.keys).compact.uniq
+              else
+                options[:column_override]
+              end
     # lets figure out how wide each column is, including header
     column_width_pairs = columns.map do |column|
       # grab all attributes == column and figure out max width
