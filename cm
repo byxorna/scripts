@@ -8,8 +8,10 @@ require 'optparse'
 
 SUCCESS = "SUCCESS"
 ERROR   = "ERROR"
-valid_statuses = ["ALLOCATED","CANCELLED","DECOMMISSIONED","INCOMPLETE","MAINTENANCE","NEW","PROVISIONED","PROVISIONING","UNALLOCATED"]
-valid_states = {
+VALID_STATUSES = ["ALLOCATED","CANCELLED","DECOMMISSIONED","INCOMPLETE","MAINTENANCE","NEW","PROVISIONED","PROVISIONING","UNALLOCATED"]
+#TODO: this shouldnt be hardcoded. we should pull this from the API instead?
+# should elegantly support user-defined states without changing this script
+VALID_STATES = {
   "ALLOCATED" => ["CLAIMED","SPARE","RUNNING_UNMONITORED","UNMONITORED"],
   "MAINTENANCE" => ["AWAITING_REVIEW","HARDWARE_PROBLEM","HW_TESTING","HARDWARE_UPGRADE","IPMI_PROBLEM","MAINT_NOOP","NETWORK_PROBLEM","RELOCATION",'PROVISIONING_PROBLEM'],
   "ANY" => ["RUNNING","STARTING","STOPPING","TERMINATED"],
@@ -23,9 +25,14 @@ options = {
   :log_level => 'NOTE'
 }
 
-OptionParser.new do |opts|
+parser = OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
   opts.on('-a','--set-attribute attribute:value',String,"Set attribute=value. : between key and value. attribute will be uppercased.") do |x|
+    if not x.include? ':'
+      puts '--set-attribute requires attribute:value, missing :value'
+      puts opts.help
+      exit 1
+    end
     a,v = x.split(':')
     options[:attributes][a.upcase.to_sym] = v
   end
@@ -48,9 +55,9 @@ OptionParser.new do |opts|
   opts.separator "Allowed values (uppercase or lowercase is accepted):"
   opts.separator <<_EOF_
   Status (-S,--set-status):
-    #{valid_statuses.join(', ')}
+    #{VALID_STATUSES.join(', ')}
   States (-S,--set-status):
-    #{valid_states.keys.map {|k| "#{k} ->\n      #{valid_states[k].join(', ')}"}.join "\n    "}
+    #{VALID_STATES.keys.map {|k| "#{k} ->\n      #{VALID_STATES[k].join(', ')}"}.join "\n    "}
   Log levels (-L,--level):
     #{log_levels.join(', ')}
 _EOF_
@@ -74,10 +81,16 @@ _EOF_
   Read from stdin:
     cf -n develnode | #{$0} -d my_attribute
     cf -n develnode -S allocated | #{$0} -a collectd_version:5.2.1-52
-    echo -e "001234\n001235\n001236"| #{$0} -a test_attribute:'hello world'
+    echo -e "001234\\n001235\\n001236"| #{$0} -a test_attribute:'hello world'
 _EOF_
 end.parse!
 
+if ARGV.size > 0
+  # anything else left in ARGV is garbage
+  puts "Not sure what I am supposed to do with these arguments: #{ARGV.join(' ')}"
+  puts parser
+  exit 1
+end
 
 abort "You need to tell me to do _something_, see --help" if options[:attributes].empty? and options[:delete_attributes].empty? and options[:status].nil? and options[:log_message].nil?
 abort "You need to provide a --reason when changing asset states!" if not options[:status].nil? and options[:reason].nil?
@@ -86,8 +99,8 @@ abort "Log level #{options[:log_level]} is invalid! Use one of #{log_levels.join
 
 # if any statuses or states, validate them against allowed values
 unless options[:status].nil?
-  abort "Invalid status #{options[:status]} (Should be in #{valid_statuses.join(', ')})" unless valid_statuses.include? options[:status]
-states_for_status = valid_states["ANY"].concat((valid_states[options[:status]].nil?) ? [] : valid_states[options[:status]])
+  abort "Invalid status #{options[:status]} (Should be in #{VALID_STATUSES.join(', ')})" unless VALID_STATUSES.include? options[:status]
+states_for_status = VALID_STATES["ANY"].concat((VALID_STATES[options[:status]].nil?) ? [] : VALID_STATES[options[:status]])
   abort "State #{options[:state]} doesn't apply to status #{options[:status]} (Should be one of #{states_for_status.join(', ')})" unless options[:state].nil? or states_for_status.include?(options[:state])
 end
 
