@@ -4,6 +4,7 @@
 
 require 'collins_auth'
 require 'yaml'
+require 'json'
 require 'optparse'
 
 #TODO: querying for :status or :state with -a status:maintenance doesnt play nice with -Smaintenance,allocated
@@ -19,6 +20,7 @@ query_opts = {
 # may be converted into a CQL query
 search_attrs = { }
 options = {
+  :display => :table,           # how to display the results
   :separator => "\t",
   :attributes => {},            # additional attributes to query for
   :columns => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
@@ -38,7 +40,6 @@ OptionParser.new do |opts|
   opts.on('-s','--size SIZE',Integer, "Number of assets to return (Default: #{query_opts[:size]})") {|v| query_opts[:size] = v}
   opts.on('-r','--role ROLE[,...]',Array,"Assets in primary role ROLE") {|v| search_attrs[:primary_role] = v}
   opts.on('-R','--secondary-role ROLE[,...]',Array,"Assets in secondary role ROLE") {|v| search_attrs[:secondary_role] = v}
-  opts.on('-H','--show-header',"Show header fields in output") {options[:show_header] = true}
   opts.on('-S','--status STATUS[:STATE][,...]',Array,"Asset status (and optional state after :)") do |v|
     # in order to know what state was paired with what status, lets store the original params
     # so the query constructor can create the correct CQL query
@@ -66,10 +67,17 @@ OptionParser.new do |opts|
       end
     end
   end
-  opts.separator "Formatting/extra options:"
+  opts.separator "Table formatting:"
+  opts.on('-H','--show-header',"Show header fields in output") {options[:show_header] = true}
   opts.on('-c','--columns ATTRIBUTES',Array,"Attributes to output as columns, comma separated (Default: #{options[:columns].map(&:to_s).join(',')})") {|v| options[:column_override] = v.map(&:to_sym)}
-  opts.on('-x','--extra-columns ATTRIBUTES',Array,"Additional attributes to add to output as columns, comma separated") {|v| options[:columns].push(v.map(&:to_sym)).flatten! }
+  opts.on('-x','--extra-columns ATTRIBUTES',Array,"Show these columns in addition to the default columns, comma separated") {|v| options[:columns].push(v.map(&:to_sym)).flatten! }
   opts.on('-f','--field-separator SEPARATOR',String,"Separator between columns in output (Default: #{options[:separator]})") {|v| options[:separator] = v}
+
+  opts.separator "Robot formatting:"
+  opts.on('-j','--json',"Output results in JSON (NOTE: This probably wont be what you expected)") {options[:display] = :json}
+  opts.on('-y','--yaml',"Output results in YAML") {options[:display] = :yaml}
+
+  opts.separator "Extra options:"
   opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 
@@ -133,7 +141,26 @@ def convert_to_query(op, attrs, options)
   [basic_query,"( #{status_query} )"].reject {|q| q.nil? or q.empty?}.join(" #{op} ")
 end
 
-def display_as_table(assets)
+def display_as_robot_talk(assets, format = :json)
+  puts assets.send("to_#{format}".to_sym)
+end
+def display_as_table(assets, columns, separator, show_header = false)
+  # lets figure out how wide each column is, including header
+  column_width_pairs = columns.map do |column|
+    # grab all attributes == column and figure out max width
+    width = assets.map{|a| (column == :state) ?  a.send(column).label.to_s.length : a.send(column).to_s.length}.max
+    width = [width, column.to_s.length].max if show_header
+    [column,width]
+  end
+  column_width_map = Hash[column_width_pairs]
+
+  if show_header
+    $stderr.puts column_width_map.map{|c,w| "%-#{w}s" % c}.join(separator)
+  end
+  assets.each do |a|
+    puts column_width_map.map {|c,w| v = (c == :state) ?  a.send(c).label : a.send(c) ; "%-#{w}s" % v }.join(separator)
+  end
+
 end
 
 # merge search_attrs into query
@@ -153,28 +180,21 @@ end
 begin
   assets = collins.find(query_opts)
   if assets.length > 0
-    # if the user passed :column_override, respect that absolutely. otherwise, the columns to display
-    # should be options[:columns] + any extra attributes queried for. this way ```cf -c hostname -a is_vm:true```
-    # wont return 2 columns; only the one you asked for
-    columns = if options[:column_override].empty?
-                options[:columns].concat(search_attrs.keys).compact.uniq
-              else
-                options[:column_override]
-              end
-    # lets figure out how wide each column is, including header
-    column_width_pairs = columns.map do |column|
-      # grab all attributes == column and figure out max width
-      width = assets.map{|a| (column == :state) ?  a.send(column).label.to_s.length : a.send(column).to_s.length}.max
-      width = [width, column.to_s.length].max if options[:show_header]
-      [column,width]
-    end
-    column_width_map = Hash[column_width_pairs]
-
-    if options[:show_header]
-      $stderr.puts column_width_map.map{|c,w| "%-#{w}s" % c}.join(options[:separator])
-    end
-    assets.each do |a|
-      puts column_width_map.map {|c,w| v = (c == :state) ?  a.send(c).label : a.send(c) ; "%-#{w}s" % v }.join(options[:separator])
+    case options[:display]
+    when :table
+      # if the user passed :column_override, respect that absolutely. otherwise, the columns to display
+      # should be options[:columns] + any extra attributes queried for. this way ```cf -c hostname -a is_vm:true```
+      # wont return 2 columns; only the one you asked for
+      columns = if options[:column_override].empty?
+                  options[:columns].concat(search_attrs.keys).compact.uniq
+                else
+                  options[:column_override]
+                end
+      display_as_table(assets,columns,options[:separator],options[:show_header])
+    when :json,:yaml
+      display_as_robot_talk(assets,options[:display])
+    else
+      abort "I don't know how to display assets in #{options[:display]} format!"
     end
   else
     abort "No assets found"
