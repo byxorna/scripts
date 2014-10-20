@@ -20,13 +20,13 @@ query_opts = {
 # may be converted into a CQL query
 search_attrs = { }
 options = {
-  :display => :table,           # how to display the results
-  :separator => "\t",
-  :attributes => {},            # additional attributes to query for
-  :columns => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
-  :column_override => [],       # if set, these are the columns to display
-  :timeout => 10,               # default in collins_client library
-  :show_header => false,        # if the header for columns should be displayed
+  :display          => :table,           # how to display the results
+  :separator        => "\t",
+  :attributes       => {},            # additional attributes to query for
+  :columns          => [:tag, :hostname, :nodeclass, :status, :pool, :primary_role, :secondary_role],
+  :column_override  => [],       # if set, these are the columns to display
+  :timeout          => 120,
+  :show_header      => false,        # if the header for columns should be displayed
 }
 
 #selector_keys = [:nodeclass, :pool, :hostname, :primary_role, :secondary_role, :status, :hardware_product, :tag]

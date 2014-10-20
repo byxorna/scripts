@@ -22,7 +22,8 @@ options = {
   :query_size => 9999,
   :attributes => {},
   :delete_attributes => [],
-  :log_level => 'NOTE'
+  :log_level  => 'NOTE',
+  :timeout    => 120
 }
 
 parser = OptionParser.new do |opts|
@@ -111,7 +112,7 @@ if options[:tags].nil? or options[:tags].empty?
 end
 
 begin
-  @collins = Collins::Authenticator.setup_client
+  @collins = Collins::Authenticator.setup_client timeout: options[:timeout]
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end

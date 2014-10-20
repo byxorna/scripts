@@ -21,6 +21,7 @@ log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
   :poll_wait => 2,
   :follow => false,
   :severities => [],
+  :timeout => 20,
   :sev_colors => {
     'EMERGENCY'     => {:color => :red, :background => :light_blue},
     'ALERT'         => {:color => :red},
@@ -78,7 +79,7 @@ end
 abort "You need to give me some assets to look at; see --help" if @options[:tags].empty? and not @options[:show_all]
 
 begin
-  @collins = Collins::Authenticator.setup_client
+  @collins = Collins::Authenticator.setup_client timeout: @options[:timeout]
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end
