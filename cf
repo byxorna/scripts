@@ -27,6 +27,7 @@ options = {
   :column_override  => [],       # if set, these are the columns to display
   :timeout          => 120,
   :show_header      => false,        # if the header for columns should be displayed
+  :config           => nil           # collins config to give to setup_client
 }
 
 #selector_keys = [:nodeclass, :pool, :hostname, :primary_role, :secondary_role, :status, :hardware_product, :tag]
@@ -80,6 +81,7 @@ OptionParser.new do |opts|
 
   opts.separator "Extra options:"
   opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] = v}
+  opts.on('-C','--config CONFIG',String,'Use specific Collins config yaml for Collins::Client') {|v| options[:config] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 
   opts.separator <<_EXAMPLES_
@@ -177,7 +179,7 @@ else
 end
 
 begin
-  collins = Collins::Authenticator.setup_client timeout: options[:timeout]
+  collins = Collins::Authenticator.setup_client timeout: options[:timeout], config_file: options[:config], prompt: true
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end

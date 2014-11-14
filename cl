@@ -33,6 +33,7 @@ log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
     'DEBUG'         => {:color => :blue},
     'NOTE'          => {:color => :light_cyan},
   },
+  :config => nil
 }
 @search_opts = {
   :size => 20,
@@ -47,6 +48,7 @@ OptionParser.new do |opts|
   opts.on('-f','--follow',"Poll for logs every #{@options[:poll_wait]} seconds") {|v| @options[:follow] = true}
   opts.on('-s','--severity SEVERITY[,...]',Array,"Log severities to return (Defaults to all). Use !SEVERITY to exclude one.") {|v| @options[:severities] = v.map(&:upcase) }
   #opts.on('-i','--interleave',"Interleave all log entries (Default: groups by asset)") {|v| options[:interleave] = true}
+  opts.on('-C','--config CONFIG',String,'Use specific Collins config yaml for Collins::Client') {|v| @options[:config] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
   opts.separator ""
   opts.separator <<_EOE_
@@ -79,7 +81,7 @@ end
 abort "You need to give me some assets to look at; see --help" if @options[:tags].empty? and not @options[:show_all]
 
 begin
-  @collins = Collins::Authenticator.setup_client timeout: @options[:timeout]
+  @collins = Collins::Authenticator.setup_client timeout: @options[:timeout], config_file: @options[:config], prompt: true
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end

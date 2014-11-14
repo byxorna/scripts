@@ -23,7 +23,8 @@ options = {
   :attributes => {},
   :delete_attributes => [],
   :log_level  => 'NOTE',
-  :timeout    => 120
+  :timeout    => 120,
+  :config     => nil
 }
 
 parser = OptionParser.new do |opts|
@@ -51,6 +52,7 @@ parser = OptionParser.new do |opts|
     options[:log_level] = v.upcase
   end
   opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| options[:tags] = v.map(&:to_sym)}
+  opts.on('-C','--config CONFIG',String,'Use specific Collins config yaml for Collins::Client') {|v| options[:config] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
   opts.separator ""
   opts.separator "Allowed values (uppercase or lowercase is accepted):"
@@ -112,7 +114,7 @@ if options[:tags].nil? or options[:tags].empty?
 end
 
 begin
-  @collins = Collins::Authenticator.setup_client timeout: options[:timeout]
+  @collins = Collins::Authenticator.setup_client timeout: options[:timeout], config_file: options[:config], prompt: true
 rescue => e
   abort "Unable to set up Collins client! #{e.message}"
 end
