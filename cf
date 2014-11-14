@@ -74,6 +74,7 @@ OptionParser.new do |opts|
   opts.on('-f','--field-separator SEPARATOR',String,"Separator between columns in output (Default: #{options[:separator]})") {|v| options[:separator] = v}
 
   opts.separator "Robot formatting:"
+  opts.on('-l','--link',"Output link to assets found in web UI") {options[:display] = :link}
   opts.on('-j','--json',"Output results in JSON (NOTE: This probably wont be what you expected)") {options[:display] = :json}
   opts.on('-y','--yaml',"Output results in YAML") {options[:display] = :yaml}
 
@@ -160,7 +161,11 @@ def display_as_table(assets, columns, separator, show_header = false)
   assets.each do |a|
     puts column_width_map.map {|c,w| v = (c == :state) ?  a.send(c).label : a.send(c) ; "%-#{w}s" % v }.join(separator)
   end
-
+end
+def display_as_link assets, client
+  assets.each do |a|
+    puts "#{client.host}/asset/#{a.tag}"
+  end
 end
 
 # merge search_attrs into query
@@ -191,6 +196,8 @@ begin
                   options[:column_override]
                 end
       display_as_table(assets,columns,options[:separator],options[:show_header])
+    when :link
+      display_as_link assets, collins
     when :json,:yaml
       display_as_robot_talk(assets,options[:display])
     else
