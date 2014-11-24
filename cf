@@ -36,6 +36,7 @@ OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options] [hostnamepattern]"
   opts.separator "Query options:"
   opts.on('-t','--tag TAG[,...]',Array, "Assets with tag[s] TAG") {|v| search_attrs[:tag] = v}
+  opts.on('-T','--type TYPE',String, "Only show assets with type TYPE") {|v| search_attrs[:type] = v}
   opts.on('-n','--nodeclass NODECLASS[,...]',Array, "Assets in nodeclass NODECLASS") {|v| search_attrs[:nodeclass] = v}
   opts.on('-p','--pool POOL[,...]',Array, "Assets in pool POOL") {|v| search_attrs[:pool] = v}
   opts.on('-s','--size SIZE',Integer, "Number of assets to return (Default: #{query_opts[:size]})") {|v| query_opts[:size] = v}
