@@ -70,22 +70,27 @@ OptionParser.new do |opts|
       end
     end
   end
+
+  opts.separator ""
   opts.separator "Table formatting:"
   opts.on('-H','--show-header',"Show header fields in output") {options[:show_header] = true}
   opts.on('-c','--columns ATTRIBUTES',Array,"Attributes to output as columns, comma separated (Default: #{options[:columns].map(&:to_s).join(',')})") {|v| options[:column_override] = v.map(&:to_sym)}
   opts.on('-x','--extra-columns ATTRIBUTES',Array,"Show these columns in addition to the default columns, comma separated") {|v| options[:columns].push(v.map(&:to_sym)).flatten! }
   opts.on('-f','--field-separator SEPARATOR',String,"Separator between columns in output (Default: #{options[:separator]})") {|v| options[:separator] = v}
 
+  opts.separator ""
   opts.separator "Robot formatting:"
   opts.on('-l','--link',"Output link to assets found in web UI") {options[:display] = :link}
   opts.on('-j','--json',"Output results in JSON (NOTE: This probably wont be what you expected)") {options[:display] = :json}
   opts.on('-y','--yaml',"Output results in YAML") {options[:display] = :yaml}
 
+  opts.separator ""
   opts.separator "Extra options:"
   opts.on('--expire SECONDS',Integer,"Timeout in seconds (0 == forever)") {|v| options[:timeout] = v}
   opts.on('-C','--config CONFIG',String,'Use specific Collins config yaml for Collins::Client') {|v| options[:config] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
 
+  opts.separator ""
   opts.separator <<_EXAMPLES_
 Examples:
     Query for devnodes in DEVEL pool that are VMs
