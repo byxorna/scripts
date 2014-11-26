@@ -20,8 +20,6 @@ options = {
 parser = OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
   #TODO -s to show provisoining_profiles
-  #TODO power status with #power!
-  #provisoining: profile, contact, suffix, primary role, sec role, pool, activate
   #TODO update IPMI stuff with ipmi_update
   #TODO create IPMI with ipmi_create
   opts.separator "Actions:"
@@ -29,6 +27,7 @@ parser = OptionParser.new do |opts|
   opts.on('-S','--power-status',"Show IPMI power status.") {|v| options[:mode] = :power_status }
   opts.on('-A','--power-action ACTION',String,"Perform IPMI power ACTION on assets"){|v| options[:mode] = :power ; options[:power_action] = v}
 
+  opts.separator ""
   opts.separator "Provisioning Flags:"
   opts.on('-n','--nodeclass NODECLASS',String,"Nodeclass to provision as. (Required)") {|v| options[:provision][:nodeclass] = v }
   opts.on('-p','--pool POOL',String,"Provision with pool POOL.") {|v| options[:provision][:pool] = v }
@@ -38,10 +37,22 @@ parser = OptionParser.new do |opts|
   opts.on('-a','--activate',"Activate server on provision (useful with SL plugin) (Default: ignored)") {|v| options[:provision][:activate] = true }
   opts.on('-b','--build-contact USER',String,"Build contact. (Default: #{options[:build_contact]})") {|v| options[:build_contact] = v }
 
+  opts.separator ""
   opts.separator "General:"
   opts.on('-t','--tags TAG[,...]',Array,"Tags to work on, comma separated") {|v| options[:tags] = v.map(&:to_sym)}
   opts.on('-C','--config CONFIG',String,'Use specific Collins config yaml for Collins::Client') {|v| options[:config] = v}
   opts.on('-h','--help',"Help") {puts opts ; exit 0}
+
+  opts.separator ""
+  opts.separator "Examples:"
+  opts.separator <<_EXAMPLES_
+  Provision some machines:
+    cf -Sunallocated -arack_position:716|#{$0} -P -napiwebnode6 -RALL
+  Show power status:
+    cf ^dev6-gabe|#{$0} -S
+  Power cycle a bunch of machines:
+    #{$0} -t 001234,004567,007890 -A reboot
+_EXAMPLES_
 end.parse!
 
 if ARGV.size > 0
@@ -91,9 +102,16 @@ action_successes = []
 options[:tags].each do |t|
   case options[:mode]
   when :provision
-    action_string = "#{t} provisioned with #{options[:provision].map{|k,v| "#{k}:#{v}"}.join(" ")} by #{options[:build_contact]}"
-    action_successes << api_call(action_string, :provision, t,
-      options[:provision][:nodeclass], options[:build_contact], options[:provision])
+    action_string = "#{t} provisioning with #{options[:provision].map{|k,v| "#{k}:#{v}"}.join(" ")} by #{options[:build_contact]}... "
+    printf action_string
+    begin
+      res = @collins.provision(t, options[:provision][:nodeclass], options[:build_contact], options[:provision])
+      puts (res ? SUCCESS : ERROR )
+      action_successes << res
+    rescue => e
+      puts "#{ERROR} (#{e.message})"
+      action_successes << false
+    end
   when :power_status
     begin
       s = @collins.power_status(t)
