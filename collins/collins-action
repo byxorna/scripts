@@ -1,4 +1,4 @@
-#!/usr/bin/env tumblr_ruby
+#!/usr/bin/env ruby
 # collins-action
 # provision and manage assets in collins easily from the CLI
 
@@ -17,11 +17,13 @@ options = {
   :provision => { }
 }
 
+basename = File.basename(File.realpath($0))
 parser = OptionParser.new do |opts|
-  opts.banner = "Usage: #{$0} [options]"
+  opts.banner = "Usage: #{basename} [options]"
   #TODO -s to show provisoining_profiles
   #TODO update IPMI stuff with ipmi_update
   #TODO create IPMI with ipmi_create
+  #TODO implement IP allocation
   opts.separator "Actions:"
   opts.on('-P','--provision',"Provision assets (see Provisioning flags).") {|v| options[:mode] = :provision }
   opts.on('-S','--power-status',"Show IPMI power status.") {|v| options[:mode] = :power_status }
@@ -47,11 +49,11 @@ parser = OptionParser.new do |opts|
   opts.separator "Examples:"
   opts.separator <<_EXAMPLES_
   Provision some machines:
-    cf -Sunallocated -arack_position:716|#{$0} -P -napiwebnode6 -RALL
+    cf -Sunallocated -arack_position:716|#{basename} -P -napiwebnode6 -RALL
   Show power status:
-    cf ^dev6-gabe|#{$0} -S
+    cf ^dev6-gabe|#{basename} -S
   Power cycle a bunch of machines:
-    #{$0} -t 001234,004567,007890 -A reboot
+    #{basename} -t 001234,004567,007890 -A reboot
 _EXAMPLES_
 end.parse!
 
@@ -65,9 +67,9 @@ end
 # convert what we allow to be specified to what collins::power allows
 options[:power_action] = 'rebootsoft' if options[:power_action] == 'reboot'
 
-abort "Unknown action #{options[:mode]}! Aborting" unless [:provision, :power_status, :power].include? options[:mode]
-abort "You need to specify at least a nodeclass when provisioning! Aborting" if options[:mode] == :provision && options[:provision][:nodeclass].nil?
-abort "Unknown power action #{options[:power_action]}" unless ALLOWABLE_POWER_ACTIONS.include? options[:power_action]
+abort "See --help for #{basename} usage" unless [:provision, :power_status, :power].include? options[:mode]
+abort "You need to specify at least a nodeclass when provisioning" if options[:mode] == :provision && options[:provision][:nodeclass].nil?
+abort "Unknown power action #{options[:power_action]}, expecting one of #{ALLOWABLE_POWER_ACTIONS.join(',')}" unless ALLOWABLE_POWER_ACTIONS.include? options[:power_action]
 if options[:mode] == :power
   begin
     options[:power_action] = Collins::Power.normalize_action options[:power_action]

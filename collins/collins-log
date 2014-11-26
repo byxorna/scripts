@@ -1,4 +1,4 @@
-#!/usr/bin/env tumblr_ruby
+#!/usr/bin/env ruby
 # stands for collins-log
 # looks at logs on assets
 
@@ -40,8 +40,10 @@ log_levels = Collins::Api::Logging::Severity.constants.map(&:to_s)
   :filter => nil,
 }
 
+basename = File.basename(File.realpath($0))
+abort "See --help for #{basename} usage" if ARGV.empty?
 OptionParser.new do |opts|
-  opts.banner = "Usage: #{$0} [options]"
+  opts.banner = "Usage: #{basename} [options]"
   opts.on('-a','--all',"Show logs from ALL assets") {|v| @options[:show_all] = true}
   opts.on('-n','--number LINES',Integer,"Show the last LINES log entries. (Default: #{@search_opts[:size]})") {|v| @search_opts[:size] = v}
   opts.on('-t','--tags TAGS',Array,"Tags to work on, comma separated") {|v| @options[:tags] = v}
@@ -57,15 +59,15 @@ Severities:
 
 Examples:
   Show last 20 logs for an asset
-    #{$0} -t 001234
+    #{basename} -t 001234
   Show last 100 logs for an asset
-    #{$0} -t 001234 -n100
+    #{basename} -t 001234 -n100
   Show last 10 logs for 2 assets that are ERROR severity
-    #{$0} -t 001234,001235 -n10 -sERROR
+    #{basename} -t 001234,001235 -n10 -sERROR
   Show last 10 logs all assets that are not note or informational severity
-    #{$0} -a -n10 -s'!informational,!note'
+    #{basename} -a -n10 -s'!informational,!note'
   Show last 10 logs for all web nodes that are provisioned having verification in the message
-    cf -S provisioned -n webnode\$ | #{$0} -n10 -s debug | grep -i verification
+    cf -S provisioned -n webnode\$ | #{basename} -n10 -s debug | grep -i verification
 _EOE_
 end.parse!
 
@@ -75,11 +77,11 @@ abort "Log severities #{@options[:severities].join(',')} are invalid! Use one of
 
 if @options[:tags].empty? and not @options[:show_all]
   # read tags from stdin. first field on the line is the tag
-  input = $stdin.readlines
+  input = ARGF.readlines
   @options[:tags] = input.map{|l| l.split(/\s+/)[0] rescue nil}.compact.uniq
 end
 
-abort "You need to give me some assets to look at; see --help" if @options[:tags].empty? and not @options[:show_all]
+abort "You need to give me some assets to display logs; see --help" if @options[:tags].empty? and not @options[:show_all]
 
 begin
   @collins = Collins::Authenticator.setup_client timeout: @options[:timeout], config_file: @options[:config], prompt: true

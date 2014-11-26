@@ -1,4 +1,4 @@
-#!/usr/bin/env tumblr_ruby
+#!/usr/bin/env ruby
 # stands for collins-modify
 # perform actions on asset attribtues in collins easily
 
@@ -26,9 +26,9 @@ options = {
   :timeout    => 120,
   :config     => nil
 }
-
+basename = File.basename(File.realpath($0))
 parser = OptionParser.new do |opts|
-  opts.banner = "Usage: #{$0} [options]"
+  opts.banner = "Usage: #{basename} [options]"
   opts.on('-a','--set-attribute attribute:value',String,"Set attribute=value. : between key and value. attribute will be uppercased.") do |x|
     if not x.include? ':'
       puts '--set-attribute requires attribute:value, missing :value'
@@ -68,23 +68,23 @@ _EOF_
   opts.separator "Examples:"
   opts.separator <<_EOF_
   Set an attribute on some hosts:
-    #{$0} -t 001234,004567 -a my_attribute:true
+    #{basename} -t 001234,004567 -a my_attribute:true
   Delete an attribute on some hosts:
-    #{$0} -t 001234,004567 -d my_attribute
+    #{basename} -t 001234,004567 -d my_attribute
   Delete and add attribute at same time:
-    #{$0} -t 001234,004567 -a new_attr:test -d old_attr
+    #{basename} -t 001234,004567 -a new_attr:test -d old_attr
   Set machine into maintenace noop:
-    #{$0} -t 001234 -S maintenance:maint_noop -r "I do what I want"
+    #{basename} -t 001234 -S maintenance:maint_noop -r "I do what I want"
   Set machine back to allocated:
-    #{$0} -t 001234 -S allocated:running -r "Back to allocated"
+    #{basename} -t 001234 -S allocated:running -r "Back to allocated"
   Set machine back to new without setting state:
-    #{$0} -t 001234 -S new -r "Dunno why you would want this"
+    #{basename} -t 001234 -S new -r "Dunno why you would want this"
   Create a log entry:
-    #{$0} -t 001234 -l'computers are broken and everything is horrible' -Lwarning
+    #{basename} -t 001234 -l'computers are broken and everything is horrible' -Lwarning
   Read from stdin:
-    cf -n develnode | #{$0} -d my_attribute
-    cf -n develnode -S allocated | #{$0} -a collectd_version:5.2.1-52
-    echo -e "001234\\n001235\\n001236"| #{$0} -a test_attribute:'hello world'
+    cf -n develnode | #{basename} -d my_attribute
+    cf -n develnode -S allocated | #{basename} -a collectd_version:5.2.1-52
+    echo -e "001234\\n001235\\n001236"| #{basename} -a test_attribute:'hello world'
 _EOF_
 end.parse!
 
@@ -95,7 +95,7 @@ if ARGV.size > 0
   exit 1
 end
 
-abort "You need to tell me to do _something_, see --help" if options[:attributes].empty? and options[:delete_attributes].empty? and options[:status].nil? and options[:log_message].nil?
+abort "See --help for #{basename} usage" if options[:attributes].empty? and options[:delete_attributes].empty? and options[:status].nil? and options[:log_message].nil?
 abort "You need to provide a --reason when changing asset states!" if not options[:status].nil? and options[:reason].nil?
 #TODO this is never checked because we are making option parser vet our options for levels. Catch OptionParser::InvalidArgument?
 abort "Log level #{options[:log_level]} is invalid! Use one of #{log_levels.join(', ')}" unless Collins::Api::Logging::Severity.valid?(options[:log_level])
@@ -109,7 +109,7 @@ end
 
 if options[:tags].nil? or options[:tags].empty?
   # read tags from stdin. first field on the line is the tag
-  input = $stdin.readlines
+  input = ARGF.readlines
   options[:tags] = input.map{|l| l.split(/\s+/)[0] rescue nil}.compact.uniq
 end
 

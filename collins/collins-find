@@ -1,4 +1,4 @@
-#!/usr/bin/env tumblr_ruby
+#!/usr/bin/env ruby
 # stands for collins-find
 # look up hosts quickly from collins from the CLI
 
@@ -30,10 +30,11 @@ options = {
   :config           => nil           # collins config to give to setup_client
 }
 
-#selector_keys = [:nodeclass, :pool, :hostname, :primary_role, :secondary_role, :status, :hardware_product, :tag]
 
+basename = File.basename(File.realpath($0))
+abort "See --help for #{basename} usage" if ARGV.empty?
 OptionParser.new do |opts|
-  opts.banner = "Usage: #{$0} [options] [hostnamepattern]"
+  opts.banner = "Usage: #{basename} [options] [hostnamepattern]"
   opts.separator "Query options:"
   opts.on('-t','--tag TAG[,...]',Array, "Assets with tag[s] TAG") {|v| search_attrs[:tag] = v}
   opts.on('-T','--type TYPE',String, "Only show assets with type TYPE") {|v| search_attrs[:type] = v}
