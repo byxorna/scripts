@@ -1,0 +1,3 @@
+[submodule "gimme"]
+	path = gimme
+	url = https://github.com/travis-ci/gimme.git
