@@ -1,4 +1,4 @@
-#!/usr/bin/env tumblr_ruby
+#!/usr/bin/env ruby
 # Stands for collins-ssh-root
 # Fetch root credentials from collins for a given server
 # then log into it via ssh (without requiring keys to be set up)
@@ -50,10 +50,11 @@ puts "Connecting to #{node.hostname} as root..."
 # set the password in the env instead of letting it sit on the command line
 ENV['SYSTEM_P'] = node.send(@options[:password_attr])
 ENV['SYSTEM_H'] = node.hostname
+ENV['SYSTEM_CMD'] = ARGV.join(' ')
 
 exec <<_EXPECT_
 /usr/bin/expect -c '
-spawn -noecho /usr/bin/ssh -t -oUserKnownHostsFile=/dev/null -lroot "$env(SYSTEM_H)"
+spawn -noecho /usr/bin/ssh -t -oUserKnownHostsFile=/dev/null -lroot "$env(SYSTEM_H)" -- "$env(SYSTEM_CMD)"
 expect {
   "Are you sure you want to continue connecting (yes/no)?" {
     send "yes\\r"
