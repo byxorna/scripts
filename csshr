@@ -9,7 +9,7 @@ require 'optparse'
 
 @options = {
   :password_attr => :system_password,
-  :timeout => 10,
+  :collins_timeout => 10,
 }
 
 OptionParser.new do |opts|
@@ -25,7 +25,7 @@ end.parse!
 abort "Give me a hostname or tag to connect to" if @options[:hostname].nil? and @options[:tag].nil?
 
 begin
-  collins = Collins::Authenticator.setup_client timeout: @options[:timeout]
+  collins = Collins::Authenticator.setup_client timeout: @options[:collins_timeout]
 rescue => e
   abort "Unable to set up collins client! #{e.message}"
 end
@@ -49,21 +49,28 @@ puts "Connecting to #{node.hostname} as root..."
 
 # set the password in the env instead of letting it sit on the command line
 ENV['SYSTEM_P'] = node.send(@options[:password_attr])
-ENV['SYSTEM_H'] = node.hostname
+ENV['SYSTEM_H'] = node.addresses.first.address
 ENV['SYSTEM_CMD'] = ARGV.join(' ')
 
 exec <<_EXPECT_
 /usr/bin/expect -c '
 spawn -noecho /usr/bin/ssh -t -oUserKnownHostsFile=/dev/null -lroot "$env(SYSTEM_H)" -- "$env(SYSTEM_CMD)"
+set timeout 30
 expect {
   "Are you sure you want to continue connecting (yes/no)?" {
-    send "yes\\r"
+    send -- "yes\\r"
     expect {
-      "s password:" { send "$env(SYSTEM_P)\\r" }
-      default { exit 1 }
+      "assword:" {
+        send -- "$env(SYSTEM_P)\\r"
+      }
+    }
+    default {
+      puts "Didnt get a login prompt"
+      exit 1
     }
   }
   default {
+    puts "Didnt get a SSH prompt"
     exit 1
   }
 }
