@@ -63,10 +63,10 @@ expect {
       "assword:" {
         send -- "$env(SYSTEM_P)\\r"
       }
-    }
-    default {
-      puts "Didnt get a login prompt"
-      exit 1
+      default {
+        puts "Didnt get a login prompt"
+        exit 1
+      }
     }
   }
   default {
