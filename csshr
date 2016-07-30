@@ -10,6 +10,7 @@ require 'optparse'
 @options = {
   :password_attr => :system_password,
   :collins_timeout => 10,
+  :background => false,
 }
 
 OptionParser.new do |opts|
@@ -17,11 +18,16 @@ OptionParser.new do |opts|
   opts.separator "Usage: #{$0} [hostname]|[-t 001234]"
   opts.on('-t','--tag TAG',String,'SSH to the asset with TAG') {|v| @options[:tag] = v}
   opts.on('-p','--attribute ATTR',String,"Use collins attribute ATTR (Default: #{@options[:password_attr]})") {|v| @options[:password_attr] = v.to_sym}
+  opts.on('-b','--background COMMAND',String,"Nohups command and fires it off in the background, immediately terminating session") {|v| @options[:cmd] = v ; @options[:background] = true }
   opts.on('-h','--help','Show help message') { puts opts ; exit 0 }
 end.parse!
 
 # if no tag given, require a hostname on argv
 @options[:hostname] = ARGV.shift if @options[:tag].nil?
+# if we werent given a background command, and there were remaining arguments, use those as a command
+if @options[:cmd].nil? && !ARGV.empty?
+  @options[:cmd] = ARGV.join(' ')
+end
 
 abort "Give me a hostname or tag to connect to" if @options[:hostname].nil? and @options[:tag].nil?
 
@@ -49,17 +55,19 @@ end
 # set the password in the env instead of letting it sit on the command line
 ENV['SYSTEM_P'] = node.send(@options[:password_attr])
 ENV['SYSTEM_H'] = node.addresses.first.address
-ENV['SYSTEM_CMD'] = ARGV.join(' ')
+ENV['SYSTEM_CMD'] = ''
 
-if ENV['SYSTEM_CMD'].empty?
-  puts "ssh root@#{node.hostname}:"
-else
+ENV['SYSTEM_CMD'] = @options[:cmd] if !@options[:cmd].nil?
+if @options[:background]
+  ENV['SYSTEM_CMD'] = %Q( ( #{@options[:cmd]} ) &>/dev/null & )
   puts "ssh root@#{node.hostname} -- #{ENV['SYSTEM_CMD']}"
 end
+puts "ssh root@#{node.hostname} #{ENV['SYSTEM_CMD']}"
+ssh_opts = '-t' if @options[:cmd].nil?
 
 exec <<_EXPECT_
 /usr/bin/expect -c '
-spawn -noecho /usr/bin/ssh -t -oUserKnownHostsFile=/dev/null -lroot "$env(SYSTEM_H)" -- "$env(SYSTEM_CMD)"
+spawn -noecho /usr/bin/ssh #{ssh_opts} -oUserKnownHostsFile=/dev/null -lroot "$env(SYSTEM_H)" -- "$env(SYSTEM_CMD)"
 set timeout 30
 expect {
   "Are you sure you want to continue connecting (yes/no)?" {
