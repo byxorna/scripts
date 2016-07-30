@@ -20,7 +20,8 @@ OptionParser.new do |opts|
   opts.on('-h','--help','Show help message') { puts opts ; exit 0 }
 end.parse!
 
-@options[:hostname] = ARGV.shift
+# if no tag given, require a hostname on argv
+@options[:hostname] = ARGV.shift if @options[:tag].nil?
 
 abort "Give me a hostname or tag to connect to" if @options[:hostname].nil? and @options[:tag].nil?
 
@@ -45,12 +46,16 @@ rescue => e
   abort "Error querying collins: #{e.message}"
 end
 
-puts "Connecting to #{node.hostname} as root..."
-
 # set the password in the env instead of letting it sit on the command line
 ENV['SYSTEM_P'] = node.send(@options[:password_attr])
 ENV['SYSTEM_H'] = node.addresses.first.address
 ENV['SYSTEM_CMD'] = ARGV.join(' ')
+
+if ENV['SYSTEM_CMD'].empty?
+  puts "ssh root@#{node.hostname}:"
+else
+  puts "ssh root@#{node.hostname} -- #{ENV['SYSTEM_CMD']}"
+end
 
 exec <<_EXPECT_
 /usr/bin/expect -c '
